@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Home | PaveWatch{% endblock %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-white rounded-3 shadow-sm border">
+  <div class="container-fluid py-4 text-center">
+    <h1 class="display-5 fw-bold text-dark">Welcome to PaveWatch</h1>
+    <p class="col-md-8 fs-5 mx-auto text-secondary">
+      Empowering citizens to report footpath obstructions with photo verification and geolocation. Helping municipal authorities resolve walkability issues fast with full transparency.
+    </p>
+    <div class="d-flex justify-content-center gap-3 mt-4">
+      <span class="badge bg-success fs-6 py-2 px-3">System Online (Django 5.2)</span>
+      <span class="badge bg-primary fs-6 py-2 px-3">Bootstrap 5.3.3 Ready</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
