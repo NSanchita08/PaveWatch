@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In | PaveWatch{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+  <div class="col-md-5">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <h3 class="card-title text-center fw-bold mb-3">Sign In</h3>
+        <p class="text-center text-muted mb-4">Log in to report obstructions and track status.</p>
+
+        {% if form.errors %}
+          <div class="alert alert-danger" role="alert">
+            Invalid username or password. Please try again.
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'login' %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next|default:'' }}">
+          <div class="mb-3">
+            <label for="id_username" class="form-label fw-semibold">Username</label>
+            <input type="text" name="username" autofocus required class="form-control" id="id_username" placeholder="Your username">
+          </div>
+          <div class="mb-3">
+            <label for="id_password" class="form-label fw-semibold">Password</label>
+            <input type="password" name="password" required class="form-control" id="id_password" placeholder="Your password">
+          </div>
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-warning fw-bold text-dark">Sign In</button>
+          </div>
+        </form>
+
+        <div class="text-center mt-3 text-muted">
+          Don't have an account? <a href="{% url 'register' %}" class="text-decoration-none">Register as Citizen</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

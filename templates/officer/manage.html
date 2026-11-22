@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Manage Report {{ report.tracking_id }} | PaveWatch{% endblock %}
+{% block content %}
+<div class="container my-4">
+  <h2>Manage Report: {{ report.tracking_id|default:report.id }}</h2>
+</div>
+{% endblock %}

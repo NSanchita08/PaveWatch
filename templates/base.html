@@ -10,7 +10,7 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
     <div class="container">
       <a class="navbar-brand fw-bold" href="{% url 'home' %}">
         <span class="text-warning">Pave</span>Watch
@@ -23,15 +23,49 @@
           <li class="nav-item">
             <a class="nav-link" href="{% url 'home' %}">Home</a>
           </li>
-        </ul>
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
           {% if user.is_authenticated %}
-            <li class="nav-item">
-              <span class="navbar-text me-3">Logged in as <strong>{{ user.username }}</strong></span>
+            {% if user.role == "CITIZEN" %}
+              <li class="nav-item">
+                <a class="nav-link" href="/report/new/">Report Obstruction</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/my/">My Reports</a>
+              </li>
+            {% endif %}
+            {% if user.role == "OFFICER" or user.role == "SUPERVISOR" or user.role == "ADMIN" %}
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'officer_queue' %}">Officer Queue</a>
+              </li>
+            {% endif %}
+            {% if user.role == "ADMIN" %}
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'admin:index' %}">Django Admin</a>
+              </li>
+            {% endif %}
+          {% endif %}
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard/">Public Dashboard</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+          {% if user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="badge bg-secondary me-1">{{ user.get_role_display }}</span>
+                <strong>{{ user.username }}</strong>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdown">
+                <li><a class="dropdown-item" href="{% url 'profile' %}">Profile Settings</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="{% url 'logout' %}">Sign Out</a></li>
+              </ul>
             </li>
           {% else %}
             <li class="nav-item">
-              <span class="navbar-text">Welcome, Citizen</span>
+              <a class="nav-link" href="{% url 'login' %}">Sign In</a>
+            </li>
+            <li class="nav-item ms-lg-2">
+              <a class="btn btn-warning btn-sm fw-semibold text-dark px-3" href="{% url 'register' %}">Register</a>
             </li>
           {% endif %}
         </ul>
