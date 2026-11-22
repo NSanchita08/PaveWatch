@@ -9,3 +9,4 @@ class CustomUserAdmin(UserAdmin):
     )
     list_display = ("username", "email", "role", "ward", "zone", "points", "is_staff")
     list_filter = ("role", "ward", "zone", "is_staff", "is_superuser")
+    search_fields = ("username", "email", "phone")
