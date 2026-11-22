@@ -23,7 +23,7 @@
 | STEP 1 | Skeleton and environment | DONE | 2026-11-21 | 8598c7f | check (0 issues), makemigrations --check (0 changes), migrate (all applied OK), pytest (1 passed in 0.31s), HTTP 200 with Bootstrap at `/` |
 | STEP 2 | Models and admin registration | DONE | 2026-11-22 | 1a2b0f0 | makemigrations reports (created Report, Notification, ReportPhoto, StatusHistory, Confirmation), migrate applied reports.0001_initial, check 0 issues, pytest (5 passed in 4.20s), admin creation of Ward, Category, Report verified |
 | STEP 3 | Authentication and roles | DONE | 2026-11-22 | e3a9339 | check (0 issues), makemigrations --check (0 changes), pytest (10 passed in 10.77s) testing anonymous redirect, citizen 403 on queue, ward officer object check, supervisor zone check, admin permissions, and citizen registration |
-| STEP 4 | Report submission | PENDING | - | - | - |
+| STEP 4 | Report submission | IN_PROGRESS | - | - | - |
 | STEP 5 | Tracking pages | PENDING | - | - | - |
 | STEP 6 | Officer workflow | PENDING | - | - | - |
 | STEP 7 | Admin panel polish | PENDING | - | - | - |
