@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<h2>Your Notifications</h2>
+{% if notifications %}
+  <ul class="list-group">
+    {% for n in notifications %}
+      <li class="list-group-item{% if not n.is_read %} fw-bold{% endif %}">
+        {{ n.message }} <small class="text-muted">{{ n.created_at|timesince }} ago</small>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No notifications.</p>
+{% endif %}
+{% endblock %}

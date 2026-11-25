@@ -1,7 +1,11 @@
+"""models for reports app"""
+
 from django.conf import settings
 from django.db import models
 
+
 class Report(models.Model):
+    title = models.CharField(max_length=200, blank=True, default='')
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED"
         ACKNOWLEDGED = "ACKNOWLEDGED"
@@ -11,9 +15,10 @@ class Report(models.Model):
         REOPENED = "REOPENED"
         REJECTED = "REJECTED"
 
+    # Core fields
     tracking_id = models.CharField(max_length=20, unique=True, null=True, blank=True)
     reporter = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="reports")
-    category = models.ForeignKey("core.Category", on_delete=models.PROTECT)
+    category = models.ForeignKey("core.Category", on_delete=models.PROTECT, null=True, blank=True)
     description = models.TextField(blank=True)
     landmark = models.CharField(max_length=200, blank=True)
     lat = models.FloatField()
@@ -40,8 +45,13 @@ class Report(models.Model):
 
     OPEN_STATUSES = ["SUBMITTED", "ACKNOWLEDGED", "IN_PROGRESS", "REOPENED"]
 
+    @property
+    def is_verified(self) -> bool:
+        return self.trust_score >= 50
+
     def __str__(self):
         return self.tracking_id or f"Report #{self.pk}"
+
 
 class ReportPhoto(models.Model):
     class Kind(models.TextChoices):
@@ -57,6 +67,7 @@ class ReportPhoto(models.Model):
     def __str__(self):
         return f"{self.kind} photo for {self.report}"
 
+
 class StatusHistory(models.Model):
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name="history")
     from_status = models.CharField(max_length=14, blank=True)
@@ -71,6 +82,7 @@ class StatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.report}: {self.from_status} -> {self.to_status}"
+
 
 class Confirmation(models.Model):
     class Kind(models.TextChoices):
@@ -88,6 +100,7 @@ class Confirmation(models.Model):
 
     def __str__(self):
         return f"{self.user} confirmed {self.kind} on {self.report}"
+
 
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")

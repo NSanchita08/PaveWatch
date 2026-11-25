@@ -1,60 +1,90 @@
 from django import forms
-from .models import Report, ReportPhoto
-from django.forms import ClearableFileInput
+from django.conf import settings
 
-# Custom widget to allow multiple file selection
-class MultiFileInput(ClearableFileInput):
+
+class MultiFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
 
-class ReportForm(forms.ModelForm):
-    """Form for creating a new report.
+class ReportForm(forms.Form):
+    """Form for submitting a new obstruction report."""
 
-    Fields:
-        - category
-        - description
-        - landmark (optional)
-        - location (latitude & longitude as a string "lat,lon")
-        - severity (choice)
-        - photos (multiple optional images)
-    """
+    category = forms.ModelChoiceField(
+        queryset=None,  # set in __init__
+        label="Category",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    description = forms.CharField(
+        required=False,
+        label="Description",
+        widget=forms.Textarea(attrs={
+            "rows": 3,
+            "class": "form-control",
+            "placeholder": "Describe the obstruction…",
+        }),
+    )
+    landmark = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Nearby Landmark",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g. Near City Bus Stop",
+        }),
+    )
+    severity = forms.ChoiceField(
+        choices=[(1, "Low (1)"), (2, "Medium (2)"), (3, "High (3)")],
+        initial=2,
+        label="Severity",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    # Accessibility checkboxes
+    affects_wheelchair = forms.BooleanField(required=False, label="Wheelchair users")
+    affects_visually_impaired = forms.BooleanField(required=False, label="Visually impaired")
+    affects_elderly = forms.BooleanField(required=False, label="Elderly")
+    affects_children = forms.BooleanField(required=False, label="Children")
+
+    # Hidden lat/lon filled by the Leaflet map JS
+    lat = forms.FloatField(
+        widget=forms.HiddenInput(),
+        error_messages={"required": "Please drop a pin on the map to select a location."},
+    )
+    lon = forms.FloatField(
+        widget=forms.HiddenInput(),
+        error_messages={"required": "Please drop a pin on the map to select a location."},
+    )
 
     photos = forms.FileField(
-        widget=MultiFileInput(attrs={"multiple": True}),
+        widget=MultiFileInput(attrs={
+            "multiple": True,
+            "accept": "image/jpeg,image/png,image/webp",
+            "class": "form-control",
+        }),
         required=False,
-        label="Photos",
-        help_text="Upload one or more photos (optional).",
+        label="Photos (up to 3, JPG/PNG/WebP, max 5 MB each)",
     )
 
-    location = forms.CharField(
-        max_length=100,
-        required=True,
-        label="Location",
-        help_text="Enter latitude and longitude as 'lat,lon'.",
-    )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Category
+        self.fields["category"].queryset = Category.objects.all()
 
-    class Meta:
-        model = Report
-        fields = ["category", "description", "landmark", "location", "severity"]
-        widgets = {
-            "description": forms.Textarea(attrs={"rows": 4}),
-        }
+    def clean_severity(self):
+        return int(self.cleaned_data["severity"])
 
-    def clean_location(self):
-        """Validate and split latitude/longitude.
-
-        Returns a tuple (lat, lon) as floats.
-        """
-        value = self.cleaned_data["location"].strip()
-        try:
-            lat_str, lon_str = value.split(",")
-            lat = float(lat_str)
-            lon = float(lon_str)
-        except Exception:
-            raise forms.ValidationError(
-                "Enter location as 'latitude,longitude' with numeric values."
-            )
-        # Optionally enforce bounds (India lat/long range as example)
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            raise forms.ValidationError("Latitude must be between -90 and 90 and longitude between -180 and 180.")
-        return (lat, lon)
+    def clean(self):
+        cleaned = super().clean()
+        lat = cleaned.get("lat")
+        lon = cleaned.get("lon")
+        if lat is not None and lon is not None:
+            bounds = getattr(settings, "BLR_BOUNDS", {})
+            lat_min = bounds.get("lat_min", -90)
+            lat_max = bounds.get("lat_max", 90)
+            lon_min = bounds.get("lon_min", -180)
+            lon_max = bounds.get("lon_max", 180)
+            if not (lat_min <= lat <= lat_max):
+                self.add_error("lat", "Pin must be within Bengaluru city limits (latitude out of range).")
+            if not (lon_min <= lon <= lon_max):
+                self.add_error("lon", "Pin must be within Bengaluru city limits (longitude out of range).")
+        return cleaned

@@ -1,0 +1,20 @@
+{% load static %}
+<li class="nav-item dropdown me-3">
+  <a class="nav-link dropdown-toggle text-light" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    <i class="bi bi-bell"></i>
+    {% if notifications|length > 0 %}
+      <span class="badge bg-danger rounded-pill">{{ notifications|length }}</span>
+    {% endif %}
+  </a>
+  <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown">
+    {% if notifications %}
+      {% for n in notifications %}
+        <li><a class="dropdown-item" href="{{ n.get_absolute_url }}">{{ n.message|truncatechars:40 }}</a></li>
+      {% endfor %}
+    {% else %}
+      <li><span class="dropdown-item-text text-muted">No new notifications</span></li>
+    {% endif %}
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="{% url 'notifications' %}">View all</a></li>
+  </ul>
+</li>

@@ -10,6 +10,7 @@ class WardAdmin(admin.ModelAdmin):
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "sla_days", "base_severity")
+    list_editable = ("sla_days", "base_severity")
     list_filter = ("base_severity",)
     search_fields = ("name",)
 

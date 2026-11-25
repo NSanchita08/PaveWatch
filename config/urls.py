@@ -1,15 +1,16 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from django.views.generic import TemplateView
-from accounts import views as account_views
-from django.contrib.auth.views import LoginView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', TemplateView.as_view(template_name='home.html'), name='home'),
-    path('accounts/', include('accounts.urls')),
-    path('login/', LoginView.as_view(template_name='accounts/login.html'), name='login'),
-    path('logout/', account_views.user_logout, name='logout'),
-    path('profile/', account_views.profile, name='profile'),
-    path('', include('reports.urls')),
+    path("admin/", admin.site.urls),
+    path("", TemplateView.as_view(template_name="home.html"), name="home"),
+    path("accounts/", include("accounts.urls")),
+    path("", include("reports.urls")),
+    path("", include("dashboard.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

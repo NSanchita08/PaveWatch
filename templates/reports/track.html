@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Track Reports | PaveWatch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<style>
+  #track-map { height: 350px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="fw-bold mb-0">🔍 Public Reports Tracker</h2>
+  <a href="{% url 'report_create' %}" class="btn btn-warning fw-semibold text-dark">+ Submit New Report</a>
+</div>
+
+<!-- Interactive Map of Reports on this page -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header fw-semibold bg-light">🗺 Live Incident Map</div>
+  <div class="card-body p-2">
+    <div id="track-map"></div>
+  </div>
+</div>
+
+<form method="get" class="row g-3 mb-4 bg-white p-3 rounded shadow-sm border">
+  <div class="col-md-3">
+    <label class="form-label small fw-semibold">Status</label>
+    <select name="status" class="form-select form-select-sm" aria-label="Status filter">
+      <option value="">All statuses</option>
+      {% for value, label in Report.Status.choices %}
+        <option value="{{ value }}"{% if filters.status == value %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small fw-semibold">Severity</label>
+    <select name="severity" class="form-select form-select-sm" aria-label="Severity filter">
+      <option value="">All severities</option>
+      <option value="1"{% if filters.severity == "1" %} selected{% endif %}>Low (1)</option>
+      <option value="2"{% if filters.severity == "2" %} selected{% endif %}>Medium (2)</option>
+      <option value="3"{% if filters.severity == "3" %} selected{% endif %}>High (3)</option>
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label small fw-semibold">Ward ID</label>
+    <input type="number" name="ward_id" class="form-control form-control-sm" placeholder="Enter Ward ID (e.g. 1)" value="{{ filters.ward_id }}">
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button type="submit" class="btn btn-primary btn-sm w-100">Apply Filter</button>
+  </div>
+</form>
+
+<div class="table-responsive bg-white rounded shadow-sm border">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th>Tracking ID</th>
+        <th>Category</th>
+        <th>Ward</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in page_obj.object_list %}
+        <tr>
+          <td><code>{{ report.tracking_id|default:report.pk }}</code></td>
+          <td>{{ report.category.name }}</td>
+          <td>{{ report.ward.name|default:"—" }}</td>
+          <td>
+            {% if report.status == "SUBMITTED" %}<span class="badge bg-secondary">Submitted</span>
+            {% elif report.status == "ACKNOWLEDGED" %}<span class="badge bg-info text-dark">Acknowledged</span>
+            {% elif report.status == "IN_PROGRESS" %}<span class="badge bg-warning text-dark">In Progress</span>
+            {% elif report.status == "RESOLVED" %}<span class="badge bg-success">Resolved</span>
+            {% elif report.status == "CLOSED" %}<span class="badge bg-dark">Closed</span>
+            {% elif report.status == "REOPENED" %}<span class="badge bg-danger">Reopened</span>
+            {% elif report.status == "REJECTED" %}<span class="badge bg-danger">Rejected</span>
+            {% endif %}
+          </td>
+          <td>{{ report.created_at|date:"Y-m-d H:i" }}</td>
+          <td><a href="{% url 'report_detail' report.pk %}" class="btn btn-sm btn-outline-primary">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">No reports found matching your criteria.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<nav aria-label="Page navigation" class="mt-4">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% for k,v in filters.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Previous</span></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% for k,v in filters.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">Next</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+(function() {
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+
+  const map = L.map("track-map").setView([12.9716, 77.5946], 12);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap contributors © CARTO",
+    subdomains: "abcd",
+    maxZoom: 20
+  }).addTo(map);
+
+  setTimeout(function() { map.invalidateSize(); }, 200);
+
+  const cluster = L.markerClusterGroup();
+  const colorMap = {
+    "SUBMITTED": "#6c757d", "ACKNOWLEDGED": "#0dcaf0", "IN_PROGRESS": "#ffc107",
+    "RESOLVED": "#198754", "CLOSED": "#212529", "REOPENED": "#dc3545", "REJECTED": "#dc3545"
+  };
+
+  const reports = [
+    {% for r in page_obj.object_list %}
+      {% if r.lat and r.lon %}
+      {
+        pk: {{ r.pk }},
+        tracking_id: "{{ r.tracking_id|default:r.pk|escapejs }}",
+        category: "{{ r.category.name|escapejs }}",
+        lat: {{ r.lat }},
+        lon: {{ r.lon }},
+        status: "{{ r.status|escapejs }}"
+      },
+      {% endif %}
+    {% endfor %}
+  ];
+
+  reports.forEach(r => {
+    const color = colorMap[r.status] || "#6c757d";
+    const icon = L.divIcon({
+      html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div>`,
+      className: "custom-track-marker", iconSize: [16, 16], iconAnchor: [8, 8]
+    });
+    const popupHtml = `
+      <div style="min-width:140px;">
+        <div class="fw-bold">${r.tracking_id}</div>
+        <div class="small text-muted mb-1">${r.category}</div>
+        <span class="badge" style="background-color:${color};color:#fff;">${r.status}</span>
+        <div class="mt-2"><a href="/r/${r.pk}/" class="btn btn-sm btn-primary text-white py-0 px-2" style="font-size:12px;">View Report</a></div>
+      </div>
+    `;
+    L.marker([r.lat, r.lon], { icon }).bindPopup(popupHtml).addTo(cluster);
+  });
+
+  map.addLayer(cluster);
+
+  if (reports.length > 0) {
+    const group = new L.featureGroup(cluster.getLayers());
+    if (group.getBounds().isValid()) {
+      map.fitBounds(group.getBounds().pad(0.1));
+    }
+  }
+})();
+</script>
+{% endblock %}

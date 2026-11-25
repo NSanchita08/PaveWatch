@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Report {{ report.tracking_id }} | PaveWatch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #detail-map { height: 220px; border-radius: 8px; border: 1px solid #dee2e6; }
+  .timeline-step { border-left: 3px solid #dee2e6; padding-left: 16px; margin-bottom: 12px; position: relative; }
+  .timeline-step::before { content: ""; position: absolute; left: -7px; top: 4px; width: 11px; height: 11px; border-radius: 50%; background: #ffc107; border: 2px solid #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Left column: report details -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <h5 class="mb-0 fw-bold">📋 Report <code>{{ report.tracking_id|default:report.pk }}</code></h5>
+          {% if report.trust_score >= 50 %}
+            <span class="badge bg-success" title="Trust Score: {{ report.trust_score }} / 100">
+              🛡️ Verified Report
+            </span>
+          {% endif %}
+        </div>
+        <div>
+        {% if report.status == "SUBMITTED" %}
+          <span class="badge bg-secondary fs-6">Submitted</span>
+        {% elif report.status == "ACKNOWLEDGED" %}
+          <span class="badge bg-info text-dark fs-6">Acknowledged</span>
+        {% elif report.status == "IN_PROGRESS" %}
+          <span class="badge bg-warning text-dark fs-6">In Progress</span>
+        {% elif report.status == "RESOLVED" %}
+          <span class="badge bg-success fs-6">Resolved</span>
+        {% elif report.status == "CLOSED" %}
+          <span class="badge bg-dark fs-6">Closed</span>
+        {% elif report.status == "REOPENED" %}
+          <span class="badge bg-danger fs-6">Reopened</span>
+        {% elif report.status == "REJECTED" %}
+          <span class="badge bg-danger fs-6">Rejected</span>
+        {% endif %}
+        </div>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Category</dt>
+          <dd class="col-sm-8">{{ report.category.name }}</dd>
+
+          <dt class="col-sm-4">Ward</dt>
+          <dd class="col-sm-8">{{ report.ward.name|default:"Unknown" }}</dd>
+
+          <dt class="col-sm-4">Severity</dt>
+          <dd class="col-sm-8">
+            {% if report.severity == 1 %}<span class="badge bg-success">Low</span>
+            {% elif report.severity == 2 %}<span class="badge bg-warning text-dark">Medium</span>
+            {% else %}<span class="badge bg-danger">High</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-4">Trust Score</dt>
+          <dd class="col-sm-8">
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height: 8px; max-width: 140px;">
+                <div class="progress-bar {% if report.trust_score >= 50 %}bg-success{% else %}bg-secondary{% endif %}" role="progressbar" style="width: {{ report.trust_score }}%;" aria-valuenow="{{ report.trust_score }}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <span class="small fw-semibold">{{ report.trust_score }}/100</span>
+              {% if report.trust_score >= 50 %}
+                <span class="badge bg-success small">Verified</span>
+              {% endif %}
+            </div>
+            {% if report.exif_ok %}
+              <div class="small text-success mt-1">✓ Photo GPS & timestamp verified on location</div>
+            {% endif %}
+          </dd>
+
+          {% if report.duplicate_of %}
+          <dt class="col-sm-4">Duplicate of</dt>
+          <dd class="col-sm-8">
+            <a href="{% url 'report_detail' report.duplicate_of.pk %}"><code>{{ report.duplicate_of.tracking_id|default:report.duplicate_of.pk }}</code></a>
+          </dd>
+          {% endif %}
+
+          <dt class="col-sm-4">Description</dt>
+          <dd class="col-sm-8">{{ report.description|default:"—" }}</dd>
+
+          <dt class="col-sm-4">Landmark</dt>
+          <dd class="col-sm-8">{{ report.landmark|default:"—" }}</dd>
+
+          <dt class="col-sm-4">Submitted</dt>
+          <dd class="col-sm-8">{{ report.created_at|date:"d M Y, H:i" }}</dd>
+
+          {% if report.resolved_at %}
+          <dt class="col-sm-4">Resolved</dt>
+          <dd class="col-sm-8">{{ report.resolved_at|date:"d M Y, H:i" }}</dd>
+          {% endif %}
+
+          {% if show_reporter and report.reporter %}
+          <dt class="col-sm-4">Reported by</dt>
+          <dd class="col-sm-8">{{ report.reporter.username }}</dd>
+          {% endif %}
+        </dl>
+
+        <!-- Affects chips -->
+        {% if report.affects_wheelchair or report.affects_visually_impaired or report.affects_elderly or report.affects_children %}
+        <div class="mt-3">
+          <strong>Affects:</strong>
+          {% if report.affects_wheelchair %}<span class="badge bg-primary me-1">♿ Wheelchair</span>{% endif %}
+          {% if report.affects_visually_impaired %}<span class="badge bg-info text-dark me-1">👁 Visually Impaired</span>{% endif %}
+          {% if report.affects_elderly %}<span class="badge bg-secondary me-1">🧓 Elderly</span>{% endif %}
+          {% if report.affects_children %}<span class="badge bg-warning text-dark me-1">👶 Children</span>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Still there confirmation widget -->
+    {% if report.status in report.OPEN_STATUSES %}
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <h6 class="fw-bold mb-1">Is this obstruction still there?</h6>
+          <div class="small text-muted">
+            {{ still_there_count }} citizen{{ still_there_count|pluralize }} confirmed this obstruction is still present.
+          </div>
+        </div>
+        <div>
+          {% if user.is_authenticated %}
+            {% if user_confirmed %}
+              <button class="btn btn-outline-success btn-sm fw-semibold" disabled>
+                ✓ You confirmed: Still there
+              </button>
+            {% else %}
+              <form method="post" action="{% url 'report_confirm' report.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+                  👍 Still there ({{ still_there_count }})
+                </button>
+              </form>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-outline-warning btn-sm fw-semibold text-dark">
+              Log in to confirm ({{ still_there_count }})
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Photos -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header"><h6 class="mb-0">📷 Photos</h6></div>
+      <div class="card-body">
+        {% if photos %}
+          <div class="row g-2">
+            {% for photo in photos %}
+              <div class="col-6 col-md-4">
+                <div class="position-relative">
+                  <img src="{{ photo.image.url }}" class="img-fluid rounded" alt="Report photo" loading="lazy">
+                  <span class="position-absolute top-0 start-0 badge bg-dark m-1">{{ photo.kind }}</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">No photos attached.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column: map + timeline -->
+  <div class="col-lg-4">
+    <!-- Mini map -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header"><h6 class="mb-0">🗺 Location</h6></div>
+      <div class="card-body p-2">
+        <div id="detail-map"></div>
+        <p class="text-muted small mt-1 mb-0">{{ report.lat|floatformat:5 }}, {{ report.lon|floatformat:5 }}</p>
+      </div>
+    </div>
+
+    <!-- Status timeline -->
+    <div class="card shadow-sm border-0">
+      <div class="card-header"><h6 class="mb-0">📅 Status Timeline</h6></div>
+      <div class="card-body">
+        {% if history %}
+          {% for entry in history %}
+            <div class="timeline-step">
+              <div class="fw-semibold">{{ entry.to_status }}</div>
+              {% if entry.remark %}<div class="text-muted small">{{ entry.remark }}</div>{% endif %}
+              <div class="text-muted small">{{ entry.created_at|date:"d M Y, H:i" }}</div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted mb-0">No history yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<a href="{% url 'track_reports' %}" class="btn btn-outline-secondary mt-3">← Back to All Reports</a>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+
+  const lat = {{ report.lat }};
+  const lon = {{ report.lon }};
+  const map = L.map("detail-map").setView([lat, lon], 16);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap contributors © CARTO",
+    subdomains: "abcd",
+    maxZoom: 20
+  }).addTo(map);
+  setTimeout(function() { map.invalidateSize(); }, 200);
+  L.marker([lat, lon]).addTo(map).bindPopup("{{ report.tracking_id|default:report.pk }}").openPopup();
+})();
+</script>
+{% endblock %}

@@ -1,9 +1,263 @@
 {% extends "base.html" %}
+{% load static %}
+{% block title %}Submit Report | PaveWatch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #report-map { height: 350px; border-radius: 8px; border: 1px solid #dee2e6; }
+  .affects-label { font-weight: 500; margin-bottom: 4px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Submit a New Report</h2>
-<form method="post" enctype="multipart/form-data" class="mt-4">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit" class="btn btn-primary">Submit</button>
-</form>
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0 fw-bold">📍 Report a Footpath Obstruction</h4>
+      </div>
+      <div class="card-body p-4">
+
+        {% if form.errors %}
+          <div class="alert alert-danger">
+            <strong>Please fix the errors below:</strong>
+            {{ form.non_field_errors }}
+            {% for field in form %}
+              {% if field.errors %}
+                <div>{{ field.label }}: {{ field.errors|join:", " }}</div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" novalidate id="report-form">
+          {% csrf_token %}
+          <input type="hidden" name="duplicate_of" id="id_duplicate_of" value="">
+
+          <!-- Duplicate Warning Alert -->
+          <div id="duplicate-warning" class="alert alert-warning border-warning shadow-sm mb-4" style="display: none;">
+            <div class="d-flex align-items-start">
+              <div class="fs-4 me-3">⚠️</div>
+              <div class="flex-grow-1">
+                <h6 class="fw-bold mb-1">Potential Duplicate Report Found Nearby!</h6>
+                <p class="small mb-2">
+                  An open obstruction of this type was already reported <strong id="dup-distance"></strong>m away.
+                </p>
+                <div id="dup-details" class="p-2 bg-white rounded border mb-3 small">
+                  <strong id="dup-tracking-id"></strong> · <span id="dup-landmark"></span>
+                  <span class="badge bg-secondary ms-2" id="dup-status"></span>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                  <a id="dup-confirm-link" href="#" class="btn btn-sm btn-primary">
+                    👍 Confirm that one instead
+                  </a>
+                  <button type="button" id="dup-submit-anyway-btn" class="btn btn-sm btn-outline-secondary">
+                    Submit anyway
+                  </button>
+                  <span id="dup-status-msg" class="small text-success ms-2 fw-semibold" style="display: none;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Map -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">📌 Drop a Pin on the Map <span class="text-danger">*</span></label>
+            <p class="text-muted small mb-2">Click on the map to mark the obstruction location. You can also use "My Location".</p>
+            <div id="report-map"></div>
+            <div id="map-coords" class="text-muted small mt-1" style="display:none">
+              Selected: <span id="coords-display"></span>
+            </div>
+            {{ form.lat }}
+            {{ form.lon }}
+            {% if form.lat.errors or form.lon.errors %}
+              <div class="text-danger small mt-1">Please drop a pin on the map.</div>
+            {% endif %}
+          </div>
+
+          <!-- Category -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
+            {{ form.category }}
+          </div>
+
+          <!-- Description -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            {{ form.description }}
+          </div>
+
+          <!-- Landmark -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nearby Landmark</label>
+            {{ form.landmark }}
+          </div>
+
+          <!-- Severity -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Severity</label>
+            {{ form.severity }}
+          </div>
+
+          <!-- Affects -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold affects-label">Who does this affect?</label>
+            <div class="d-flex flex-wrap gap-3">
+              <div class="form-check">{{ form.affects_wheelchair }} <label class="form-check-label" for="{{ form.affects_wheelchair.id_for_label }}">{{ form.affects_wheelchair.label }}</label></div>
+              <div class="form-check">{{ form.affects_visually_impaired }} <label class="form-check-label" for="{{ form.affects_visually_impaired.id_for_label }}">{{ form.affects_visually_impaired.label }}</label></div>
+              <div class="form-check">{{ form.affects_elderly }} <label class="form-check-label" for="{{ form.affects_elderly.id_for_label }}">{{ form.affects_elderly.label }}</label></div>
+              <div class="form-check">{{ form.affects_children }} <label class="form-check-label" for="{{ form.affects_children.id_for_label }}">{{ form.affects_children.label }}</label></div>
+            </div>
+          </div>
+
+          <!-- Photos -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Photos (optional, max 3)</label>
+            {{ form.photos }}
+            <div class="form-text">JPG, PNG or WebP only. Max 5 MB per photo.</div>
+          </div>
+
+          <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <a href="{% url 'my_reports' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-warning fw-bold text-dark px-5">Submit Report</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  // Ensure default icon paths work across CDN
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+
+  // Bengaluru center
+  const BLR = [12.9716, 77.5946];
+  const map = L.map("report-map").setView(BLR, 13);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap contributors © CARTO",
+    subdomains: "abcd",
+    maxZoom: 20
+  }).addTo(map);
+
+  setTimeout(function() { map.invalidateSize(); }, 200);
+
+  let marker = null;
+  const latInput = document.getElementById("{{ form.lat.id_for_label }}") || document.querySelector("input[name='lat']");
+  const lonInput = document.getElementById("{{ form.lon.id_for_label }}") || document.querySelector("input[name='lon']");
+  const mapCoords = document.getElementById("map-coords");
+  const coordsDisplay = document.getElementById("coords-display");
+
+  function setPin(latlng) {
+    if (marker) marker.setLatLng(latlng);
+    else marker = L.marker(latlng, { draggable: true }).addTo(map);
+    marker.on("dragend", (e) => setPin(e.target.getLatLng()));
+    latInput.value = latlng.lat.toFixed(6);
+    lonInput.value = latlng.lng.toFixed(6);
+    mapCoords.style.display = "";
+    coordsDisplay.textContent = latlng.lat.toFixed(5) + ", " + latlng.lng.toFixed(5);
+  }
+
+  map.on("click", (e) => setPin(e.latlng));
+
+  // Restore pin if lat/lon already set (e.g., form re-render after error)
+  if (latInput.value && lonInput.value) {
+    setPin(L.latLng(parseFloat(latInput.value), parseFloat(lonInput.value)));
+  }
+
+  // "My Location" button
+  const locBtn = document.createElement("button");
+  locBtn.type = "button";
+  locBtn.className = "btn btn-sm btn-outline-primary mt-2";
+  locBtn.innerHTML = "📍 Use My Location";
+  locBtn.onclick = function () {
+    if (!navigator.geolocation) { alert("Geolocation not supported"); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        map.setView(latlng, 17);
+        setPin(latlng);
+        checkDuplicates();
+      },
+      () => alert("Could not get your location.")
+    );
+  };
+  document.getElementById("report-map").after(locBtn);
+
+  // Duplicate detection logic
+  const categorySelect = document.getElementById("{{ form.category.id_for_label }}") || document.querySelector("select[name='category']");
+  const dupWarning = document.getElementById("duplicate-warning");
+  const dupDistance = document.getElementById("dup-distance");
+  const dupTrackingId = document.getElementById("dup-tracking-id");
+  const dupLandmark = document.getElementById("dup-landmark");
+  const dupStatus = document.getElementById("dup-status");
+  const dupConfirmLink = document.getElementById("dup-confirm-link");
+  const dupSubmitAnywayBtn = document.getElementById("dup-submit-anyway-btn");
+  const dupStatusMsg = document.getElementById("dup-status-msg");
+  const duplicateOfInput = document.getElementById("id_duplicate_of");
+
+  let currentDuplicate = null;
+
+  function checkDuplicates() {
+    const lat = latInput ? latInput.value : "";
+    const lon = lonInput ? lonInput.value : "";
+    const catId = categorySelect ? categorySelect.value : "";
+    if (!lat || !lon || !catId) {
+      dupWarning.style.display = "none";
+      return;
+    }
+
+    fetch(`/report/check-duplicates/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&category_id=${encodeURIComponent(catId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.count > 0) {
+          currentDuplicate = data.duplicates[0];
+          dupDistance.textContent = currentDuplicate.distance_m;
+          dupTrackingId.textContent = currentDuplicate.tracking_id;
+          dupLandmark.textContent = currentDuplicate.landmark || "Nearby obstruction";
+          dupStatus.textContent = currentDuplicate.status;
+          dupConfirmLink.href = currentDuplicate.detail_url;
+          dupStatusMsg.style.display = "none";
+          dupWarning.style.display = "block";
+        } else {
+          currentDuplicate = null;
+          dupWarning.style.display = "none";
+          duplicateOfInput.value = "";
+        }
+      })
+      .catch(() => {});
+  }
+
+  if (categorySelect) {
+    categorySelect.addEventListener("change", checkDuplicates);
+  }
+
+  if (dupSubmitAnywayBtn) {
+    dupSubmitAnywayBtn.addEventListener("click", function() {
+      if (currentDuplicate) {
+        duplicateOfInput.value = currentDuplicate.id;
+        dupStatusMsg.textContent = "✓ Linked to " + currentDuplicate.tracking_id + ". Ready to submit.";
+        dupStatusMsg.style.display = "inline-block";
+      }
+    });
+  }
+
+  // Hook setPin to duplicate check
+  const origSetPin = setPin;
+  setPin = function(latlng) {
+    origSetPin(latlng);
+    checkDuplicates();
+  };
+})();
+</script>
 {% endblock %}
