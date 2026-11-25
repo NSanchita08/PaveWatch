@@ -13,33 +13,31 @@
 {% endblock %}
 
 {% block content %}
-<h2 class="fw-bold mb-4">📊 Public Dashboard</h2>
+<div class="d-flex flex-wrap justify-content-between align-items-end mb-4 pb-3 border-bottom">
+  <div>
+    <div class="font-mono-label text-pw-blue mb-1">Civic Transparency</div>
+    <h2 class="font-serif-display mb-0" style="font-size: 2.5rem;">Public <em>Dashboard</em></h2>
+  </div>
+  <a href="{% url 'report_create' %}" class="btn-pw-primary btn-pw-sm">Report Issue ↗</a>
+</div>
 
-<!-- KPI Row -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card bg-light text-center p-3">
-      <div class="kpi-value text-dark">{{ dashboard.total }}</div>
-      <div class="text-muted small">Total Reports</div>
-    </div>
+<!-- KPI Row (Hairline Grid) -->
+<div class="pw-hairline-grid pw-hairline-grid-4 mb-4">
+  <div class="pw-hairline-cell text-center py-4">
+    <div class="kpi-value text-dark">{{ dashboard.total }}</div>
+    <div class="font-mono-label text-pw-muted mt-1">Total Reports</div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card bg-warning bg-opacity-25 text-center p-3">
-      <div class="kpi-value text-warning">{{ dashboard.open }}</div>
-      <div class="text-muted small">Open</div>
-    </div>
+  <div class="pw-hairline-cell text-center py-4">
+    <div class="kpi-value text-pw-blue">{{ dashboard.open }}</div>
+    <div class="font-mono-label text-pw-muted mt-1">Open</div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card bg-success bg-opacity-10 text-center p-3">
-      <div class="kpi-value text-success">{{ dashboard.resolved }}</div>
-      <div class="text-muted small">Resolved / Closed</div>
-    </div>
+  <div class="pw-hairline-cell text-center py-4">
+    <div class="kpi-value text-success">{{ dashboard.resolved }}</div>
+    <div class="font-mono-label text-pw-muted mt-1">Resolved / Closed</div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card kpi-card bg-info bg-opacity-10 text-center p-3">
-      <div class="kpi-value text-info">{{ dashboard.resolution_rate }}%</div>
-      <div class="text-muted small">Resolution Rate</div>
-    </div>
+  <div class="pw-hairline-cell text-center py-4">
+    <div class="kpi-value text-dark">{{ dashboard.resolution_rate }}%</div>
+    <div class="font-mono-label text-pw-muted mt-1">Resolution Rate</div>
   </div>
 </div>
 

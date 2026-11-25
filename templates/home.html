@@ -1,23 +1,168 @@
 {% extends "base.html" %}
 
-{% block title %}Home | PaveWatch{% endblock %}
+{% block title %}PaveWatch | Clear Footpaths for Citizens{% endblock %}
 
 {% block content %}
-<div class="p-5 mb-4 bg-white rounded-3 shadow-sm border">
-  <div class="container-fluid py-4 text-center">
-    <h1 class="display-5 fw-bold text-dark">Welcome to PaveWatch</h1>
-    <p class="col-md-8 fs-5 mx-auto text-secondary">
-      Empowering citizens to report footpath obstructions with photo verification and geolocation. Helping municipal authorities resolve walkability issues fast with full transparency.
-    </p>
-    <div class="d-flex justify-content-center gap-3 mt-4">
-      <a href="{% url 'report_create' %}" class="btn btn-warning btn-lg fw-bold text-dark px-4 shadow-sm">Report an Obstruction</a>
-      <a href="{% url 'track_reports' %}" class="btn btn-outline-dark btn-lg px-4">Track Reports</a>
-      <a href="{% url 'dashboard_home' %}" class="btn btn-outline-primary btn-lg px-4">Live Dashboard</a>
-    </div>
-    <div class="d-flex justify-content-center gap-3 mt-4">
-      <span class="badge bg-success fs-6 py-2 px-3">System Online (Django 5.2)</span>
-      <span class="badge bg-primary fs-6 py-2 px-3">Bootstrap 5.3.3 Ready</span>
+<!-- Hero Section -->
+<section class="pw-hero">
+  <h1 class="pw-hero-title">
+    A home for <em>citizens</em><br>
+    that keep streets <em>clear.</em>
+  </h1>
+  <p class="pw-hero-subtitle">
+    Photo-verified reporting, ward workflows, and public tracking in one dependable platform.
+    From the first report to the cleared footpath.
+  </p>
+  <div class="d-flex flex-wrap justify-content-center gap-3">
+    <a href="{% url 'dashboard_home' %}" class="btn-pw-outline">
+      See It In Action
+    </a>
+    <a href="{% url 'report_create' %}" class="btn-pw-primary">
+      Report Obstruction
+    </a>
+  </div>
+</section>
+
+<!-- Atmospheric Showcase Banner with Floating Lookup Card -->
+<section class="mb-5">
+  <div class="pw-showcase-banner">
+    <div class="pw-prompt-card">
+      <div class="pw-prompt-body">
+        <p class="mb-0 text-dark" style="font-size: 0.95rem; line-height: 1.5;">
+          Track an open footpath obstruction by status or jump straight to live ward reports across Bengaluru.
+        </p>
+        <form action="{% url 'track_reports' %}" method="get" class="pw-prompt-input-row">
+          <div class="pw-prompt-select-wrap">
+            <span class="font-mono-label text-pw-muted" style="font-size: 0.72rem;">&gt;_</span>
+            <select name="status" class="pw-prompt-input" aria-label="Filter reports by status">
+              <option value="">Browse all open reports</option>
+              <option value="SUBMITTED">Submitted reports</option>
+              <option value="ACKNOWLEDGED">Acknowledged by ward</option>
+              <option value="IN_PROGRESS">Work in progress</option>
+              <option value="RESOLVED">Resolved obstructions</option>
+            </select>
+          </div>
+          <button type="submit" class="pw-prompt-submit" aria-label="Track reports">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 12.5V3.5M8 3.5L4 7.5M8 3.5L12 7.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+      <div class="pw-prompt-footer">
+        Choose a filter. Inspect live footpath issues and resolution timelines.
+      </div>
     </div>
   </div>
-</div>
+</section>
+
+<!-- 3-Column Hairline Feature Grid -->
+<section class="mb-5">
+  <div class="pw-hairline-grid pw-hairline-grid-3">
+    <div class="pw-hairline-cell">
+      <div>
+        <div class="pw-cell-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </div>
+        <h2 class="pw-cell-title">EXIF Verification</h2>
+        <p class="pw-cell-desc">
+          A clean, automated trust pipeline checking photo GPS coordinates, timestamps, and nearby duplicates.
+        </p>
+      </div>
+      <a href="{% url 'report_create' %}" class="pw-explore-link">
+        Report Issue <span aria-hidden="true">↗</span>
+      </a>
+    </div>
+
+    <div class="pw-hairline-cell">
+      <div>
+        <div class="pw-cell-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <line x1="9" y1="1" x2="9" y2="4"></line>
+            <line x1="15" y1="1" x2="15" y2="4"></line>
+            <line x1="9" y1="20" x2="9" y2="23"></line>
+            <line x1="15" y1="20" x2="15" y2="23"></line>
+            <line x1="20" y1="9" x2="23" y2="9"></line>
+            <line x1="20" y1="14" x2="23" y2="14"></line>
+            <line x1="1" y1="9" x2="4" y2="9"></line>
+            <line x1="1" y1="14" x2="4" y2="14"></line>
+          </svg>
+        </div>
+        <h2 class="pw-cell-title">Ward Routing</h2>
+        <p class="pw-cell-desc">
+          Connects every map pin to the nearest municipal ward officer with controlled status transitions and after-photos.
+        </p>
+      </div>
+      <a href="{% url 'track_reports' %}" class="pw-explore-link">
+        Track Reports <span aria-hidden="true">↗</span>
+      </a>
+    </div>
+
+    <div class="pw-hairline-cell">
+      <div>
+        <div class="pw-cell-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+        </div>
+        <h2 class="pw-cell-title">Civic Memory</h2>
+        <p class="pw-cell-desc">
+          Keep status timelines, citizen confirmations, and ward SLA accountability together from submission to closure.
+        </p>
+      </div>
+      <a href="{% url 'dashboard_home' %}" class="pw-explore-link">
+        Live Dashboard <span aria-hidden="true">↗</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 4-Column Capability Strip + Eyebrow + Ward Strip -->
+<section class="mb-4">
+  <div class="pw-hairline-grid pw-hairline-grid-4">
+    <div class="pw-hairline-cell text-center py-4">
+      <div class="font-mono-label text-dark mb-1" style="font-size: 0.95rem; text-transform: none; letter-spacing: -0.01em;">Verified trust</div>
+      <div class="small text-pw-muted">GPS &amp; timestamp scoring</div>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <div class="font-mono-label text-dark mb-1" style="font-size: 0.95rem; text-transform: none; letter-spacing: -0.01em;">Every step</div>
+      <div class="small text-pw-muted">Inspectable status history</div>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <div class="font-mono-label text-dark mb-1" style="font-size: 0.95rem; text-transform: none; letter-spacing: -0.01em;">Citizen voice</div>
+      <div class="small text-pw-muted">Still-there confirmations</div>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <div class="font-mono-label text-dark mb-1" style="font-size: 0.95rem; text-transform: none; letter-spacing: -0.01em;">One dashboard</div>
+      <div class="small text-pw-muted">Live map &amp; ward metrics</div>
+    </div>
+  </div>
+
+  <div class="pw-eyebrow-bar">
+    <span class="font-mono-label text-pw-muted" style="font-size: 0.7rem;">
+      A Shared Foundation For Walkable Bengaluru Wards
+    </span>
+  </div>
+
+  <div class="pw-hairline-grid pw-hairline-grid-4">
+    <div class="pw-hairline-cell text-center py-4">
+      <span class="fw-semibold text-dark" style="font-size: 1.05rem;">Koramangala</span>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <span class="fw-semibold text-dark" style="font-size: 1.05rem;">Indiranagar</span>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <span class="fw-semibold text-dark" style="font-size: 1.05rem;">Jayanagar</span>
+    </div>
+    <div class="pw-hairline-cell text-center py-4">
+      <span class="fw-semibold text-dark" style="font-size: 1.05rem;">Malleshwaram</span>
+    </div>
+  </div>
+</section>
 {% endblock %}
