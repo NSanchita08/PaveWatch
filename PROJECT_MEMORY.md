@@ -32,7 +32,7 @@
 | STEP 10 | Seed data and tests | DONE | 2026-11-23 | - | seed_demo populated 6 wards, categories, POIs, demo users and 60 reports; 13/13 pytests passing |
 | STEP 11 | Deploy MVP | DONE | 2026-11-23 | - | Local server active and serving HTTP 200 on http://127.0.0.1:8000/ |
 | STEP 12 | Verified reports | DONE | 2026-11-25 | f2f1332 | check (0 issues), makemigrations --check (0 changes), pytest (22 passed in 62.74s), EXIF GPS & timestamp validation, duplicate check API, Still There confirmation & recalculation, Verified badge (trust_score >= 50) |
-| STEP 13 | SLA, escalation and closure | PENDING | - | - | - |
+| STEP 13 | SLA, escalation and closure | DONE | 2026-11-25 | c35642f | check (0 issues), makemigrations --check (0 changes), pytest (26 passed in 43.91s), SLA countdown/overdue badges, escalate_overdue & auto_close commands, FIXED/NOT_FIXED citizen feedback, ward_scores reliability on leaderboard |
 | STEP 14 | Accessibility-aware priority (headline feature) | PENDING | - | - | - |
 | STEP 15 | AI photo assistant (optional) | PENDING | - | - | - |
 | STEP 16 | Accessible route check (stretch) | PENDING | - | - | - |
@@ -54,6 +54,7 @@
 | 2026-11-24 | Map Tile API Switch | Senior Fullstack | `templates/reports/{create,detail,track}.html`, `templates/officer/manage.html`, `templates/dashboard/home.html` | Replaced blocked OpenStreetMap volunteer tile server (`tile.openstreetmap.org`, which triggers HTTP 403 policy block on localhost/app referrers) with high-availability CARTO Voyager tiles (`basemaps.cartocdn.com/rastertiles/voyager/`). Tested and verified map rendering across all 5 map templates. |
 | 2026-11-25 | STEP 12 | Senior Fullstack | `reports/{models,services,views,urls}.py`, `templates/{reports/{create,detail}.html,officer/{queue,manage}.html}`, `tests/test_verified_reports.py` | Implemented verified reports feature: EXIF GPS & timestamp validation wired to exif_ok and trust_score (compute_trust); find_duplicates and check_duplicates API with client warning and 'Submit anyway' linking duplicate_of; 'Still there' confirmation button (add_confirmation) recalculating priority and trust; verified badge on trust_score >= 50 across officer queue, manage, and report detail views. All 22 tests passing. |
 | 2026-11-25 | UI Redesign | Senior Fullstack | `static/css/app.css`, `templates/base.html`, `templates/home.html`, `templates/dashboard/home.html`, `templates/reports/{track,create}.html` | Redesigned UI to editorial Agentframe-inspired aesthetic: crisp white surfaces, 1px hairline grids (`#e5e7eb`), cobalt blue (`#2563eb`) primary accents, Instrument Serif display typography with italic blue highlights, IBM Plex Mono uppercase nav/buttons, atmospheric showcase lookup banner, and 3-column/4-column hairline feature & ward grids. `check` 0 issues, 22/22 pytests passing. |
+| 2026-11-25 | STEP 13 | Senior Fullstack | `reports/{models,services,views,urls}.py`, `reports/management/commands/{escalate_overdue,auto_close}.py`, `dashboard/services.py`, `templates/{reports/detail,officer/queue,officer/manage,dashboard/home}.html`, `tests/test_sla_escalation.py` | Implemented SLA countdown & overdue labels, `escalate_overdue` command (single escalation, officer/supervisor notifications, direct StatusHistory 'Auto-escalated'), citizen feedback (`FIXED`->CLOSED, `NOT_FIXED`->REOPENED), `auto_close` command after `AUTO_CLOSE_DAYS`, and `ward_scores()` reliability metric on the dashboard leaderboard. All 26 tests passing. |
 
 ---
 
@@ -69,6 +70,7 @@
 - Implemented `@role_required` decorator supporting multiple roles and redirecting unauthenticated users to login while raising `PermissionDenied` (403) for unauthorized authenticated roles.
 - Initialized `reports.services.can_change_status(user, report)` implementing object-level access controls for officers (same ward), supervisors (same zone), and admins (global).
 - Step 12: Reports calculate exif_ok=True if photo has GPS within EXIF_MAX_DISTANCE_M (100m) and timestamp within EXIF_MAX_AGE_HOURS (48h). compute_trust awards +50 for valid EXIF (+30 GPS, +20 timestamp), +20 for AI label category match, up to +20 for STILL_THERE confirmations (5 each), and +10 for prior closed reports (capped at 100). Reports with trust_score >= 50 earn the Verified badge. Confirmation model enforces uniqueness per user/report/kind.
+- Step 13: `ward_scores()` uses `70 * on_time_resolved_share + 30 * (1 - overdue_open_share)` with `on_time_resolved_share=1.0` when `resolved_count==0` and `overdue_open_share=0.0` when `open_count==0`. `escalate_overdue` inserts StatusHistory directly with same-status to same-status for `"Auto-escalated"`. Citizen feedback (`FIXED`/`NOT_FIXED`) is restricted to the report's original reporter on `RESOLVED` reports.
 
 ---
 
@@ -89,4 +91,4 @@
 ---
 
 ## 7. NEXT ACTION
-STEP 12 completed. Awaiting user command to proceed to STEP 13 (SLA, escalation and closure: escalate_overdue and auto_close commands, countdown/overdue displays, citizen feedback on RESOLVED reports, ward reliability scores).
+STEP 13 completed. Awaiting user command to proceed to STEP 14 (Accessibility-aware priority: `load_pois` command & `data/pois.json`, `recalc_priority` command, `accessibility_score` on dashboard, affected-group chips & nearby POI distance on detail page).
