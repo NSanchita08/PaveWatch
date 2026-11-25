@@ -34,6 +34,8 @@
         <form method="post" enctype="multipart/form-data" novalidate id="report-form">
           {% csrf_token %}
           <input type="hidden" name="duplicate_of" id="id_duplicate_of" value="">
+          {{ form.ai_label }}
+          {{ form.ai_confidence }}
 
           <!-- Duplicate Warning Alert -->
           <div id="duplicate-warning" class="alert alert-warning border-warning shadow-sm mb-4" style="display: none;">
@@ -64,7 +66,12 @@
           <!-- Map -->
           <div class="mb-4">
             <label class="form-label fw-semibold">📌 Drop a Pin on the Map <span class="text-danger">*</span></label>
-            <p class="text-muted small mb-2">Click on the map to mark the obstruction location. You can also use "My Location".</p>
+            <p class="text-muted small mb-2">Search an address, click on the map, or use "My Location" to mark the obstruction.</p>
+            <div class="input-group input-group-sm mb-2">
+              <input type="text" id="map-search-input" class="form-control" placeholder="Search Bengaluru address or landmark (e.g. Indiranagar Metro)…">
+              <button type="button" id="map-search-btn" class="btn btn-outline-secondary">Search</button>
+            </div>
+            <div id="map-search-status" class="small text-muted mb-2" style="display:none;"></div>
             <div id="report-map"></div>
             <div id="map-coords" class="text-muted small mt-1" style="display:none">
               Selected: <span id="coords-display"></span>
@@ -116,6 +123,7 @@
             <label class="form-label fw-semibold">Photos (optional, max 3)</label>
             {{ form.photos }}
             <div class="form-text">JPG, PNG or WebP only. Max 5 MB per photo.</div>
+            <div id="ai-suggestion-banner" class="alert alert-info py-2 px-3 small mt-2" style="display: none;"></div>
           </div>
 
           <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -144,9 +152,9 @@
   // Bengaluru center
   const BLR = [12.9716, 77.5946];
   const map = L.map("report-map").setView(BLR, 13);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap contributors © CARTO",
-    subdomains: "abcd",
+  L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+    attribution: "© Google Maps",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
     maxZoom: 20
   }).addTo(map);
 
@@ -258,6 +266,41 @@
     origSetPin(latlng);
     checkDuplicates();
   };
+
+  // Address search via /api/geocode/
+  const searchInput = document.getElementById("map-search-input");
+  const searchBtn = document.getElementById("map-search-btn");
+  const searchStatus = document.getElementById("map-search-status");
+
+  async function runMapSearch() {
+    const q = searchInput ? searchInput.value.trim() : "";
+    if (!q) return;
+    searchStatus.style.display = "block";
+    searchStatus.textContent = "Searching…";
+    try {
+      const res = await fetch(`/api/geocode/?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const hit = data.results[0];
+        const latlng = L.latLng(hit.lat, hit.lon);
+        map.setView(latlng, 16);
+        setPin(latlng);
+        searchStatus.textContent = `Pinned: ${hit.address}`;
+      } else {
+        searchStatus.textContent = "No matching location found in Bengaluru. Try clicking on the map.";
+      }
+    } catch (_) {
+      searchStatus.textContent = "Location search unavailable. Click on the map to place a pin.";
+    }
+  }
+
+  if (searchBtn) searchBtn.addEventListener("click", runMapSearch);
+  if (searchInput) {
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); runMapSearch(); }
+    });
+  }
 })();
 </script>
+<script src="{% static 'js/report_map.js' %}"></script>
 {% endblock %}

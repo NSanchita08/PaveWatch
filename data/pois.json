@@ -1,0 +1,37 @@
+[
+  {"name": "St. John's High School, Koramangala", "type": "school", "lat": 12.9355, "lon": 77.6248},
+  {"name": "St. John's Medical College Hospital", "type": "hospital", "lat": 12.9296, "lon": 77.6203},
+  {"name": "Koramangala Water Tank Bus Stop", "type": "bus_stop", "lat": 12.9362, "lon": 77.6231},
+  {"name": "Bethany High School, Koramangala", "type": "school", "lat": 12.9338, "lon": 77.6265},
+  {"name": "Apollo Spectra Hospital, Koramangala", "type": "hospital", "lat": 12.9344, "lon": 77.6290},
+
+  {"name": "National Public School, Indiranagar", "type": "school", "lat": 12.9718, "lon": 77.6412},
+  {"name": "Chinmaya Mission Hospital, Indiranagar", "type": "hospital", "lat": 12.9781, "lon": 77.6401},
+  {"name": "Indiranagar Metro Station", "type": "metro", "lat": 12.9784, "lon": 77.6408},
+  {"name": "Swami Vivekananda Road Metro", "type": "metro", "lat": 12.9858, "lon": 77.6449},
+  {"name": "100 Feet Road Bus Stop", "type": "bus_stop", "lat": 12.9752, "lon": 77.6410},
+
+  {"name": "National High School, Jayanagar", "type": "school", "lat": 12.9315, "lon": 77.5830},
+  {"name": "Sagar Hospital, Jayanagar", "type": "hospital", "lat": 12.9265, "lon": 77.5872},
+  {"name": "Jayanagar Metro Station", "type": "metro", "lat": 12.9295, "lon": 77.5801},
+  {"name": "Jayanagar 4th Block Bus Stand", "type": "bus_stop", "lat": 12.9288, "lon": 77.5839},
+  {"name": "Sri Jayadeva Institute of Cardiology", "type": "hospital", "lat": 12.9182, "lon": 77.5998},
+
+  {"name": "MES Kishore Kendra School, Malleshwaram", "type": "school", "lat": 13.0040, "lon": 77.5650},
+  {"name": "KC General Hospital, Malleshwaram", "type": "hospital", "lat": 12.9965, "lon": 77.5702},
+  {"name": "Malleshwaram 18th Cross Bus Stop", "type": "bus_stop", "lat": 13.0052, "lon": 77.5688},
+  {"name": "Mantri Square Sampige Road Metro", "type": "metro", "lat": 12.9912, "lon": 77.5709},
+  {"name": "Cluny Convent High School", "type": "school", "lat": 13.0018, "lon": 77.5695},
+
+  {"name": "Whitefield Global School", "type": "school", "lat": 12.9702, "lon": 77.7495},
+  {"name": "Manipal Hospital Whitefield", "type": "hospital", "lat": 12.9850, "lon": 77.7285},
+  {"name": "Whitefield (Kadugodi) Metro Station", "type": "metro", "lat": 12.9958, "lon": 77.7575},
+  {"name": "ITPL Main Gate Bus Stop", "type": "bus_stop", "lat": 12.9862, "lon": 77.7368},
+  {"name": "Vydehi Institute of Medical Sciences", "type": "hospital", "lat": 12.9765, "lon": 77.7280},
+
+  {"name": "Vidya Shilp Academy, Yelahanka", "type": "school", "lat": 13.1012, "lon": 77.5960},
+  {"name": "Navachethana Hospital, Yelahanka", "type": "hospital", "lat": 13.0985, "lon": 77.5955},
+  {"name": "Yelahanka New Town Bus Stand", "type": "bus_stop", "lat": 13.0992, "lon": 77.5845},
+  {"name": "Ryan International School, Yelahanka", "type": "school", "lat": 13.1050, "lon": 77.5902},
+  {"name": "Yelahanka Old Town Bus Stop", "type": "bus_stop", "lat": 13.1008, "lon": 77.5968}
+]

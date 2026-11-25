@@ -123,9 +123,9 @@
   });
 
   const map = L.map("track-map").setView([12.9716, 77.5946], 12);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap contributors © CARTO",
-    subdomains: "abcd",
+  L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+    attribution: "© Google Maps",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
     maxZoom: 20
   }).addTo(map);
 

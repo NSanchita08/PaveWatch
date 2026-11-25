@@ -178,6 +178,116 @@ def officer_add_after_photos(request, report_id):
 # Citizen report submission & verification
 # ---------------------------------------------------------------------------
 
+def api_geocode(request):
+    """GET ?q=... -> geocode a Bengaluru address/landmark (Google Geocoding with Nominatim fallback)."""
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"results": []})
+
+    import os
+    import requests
+    from django.conf import settings
+
+    bounds = getattr(settings, "BLR_BOUNDS", {})
+    api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
+    if api_key:
+        bounds_param = (
+            f"{bounds.get('lat_min', 12.7)},{bounds.get('lon_min', 77.3)}|"
+            f"{bounds.get('lat_max', 13.2)},{bounds.get('lon_max', 77.9)}"
+        )
+        try:
+            resp = requests.get(
+                "https://maps.googleapis.com/maps/api/geocode/json",
+                params={
+                    "address": f"{q}, Bengaluru, India",
+                    "bounds": bounds_param,
+                    "key": api_key,
+                },
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("status") == "OK":
+                results = []
+                for item in (data.get("results") or [])[:5]:
+                    loc = ((item.get("geometry") or {}).get("location")) or {}
+                    lat = loc.get("lat")
+                    lon = loc.get("lng")
+                    if lat is not None and lon is not None:
+                        results.append({
+                            "address": item.get("formatted_address", q),
+                            "lat": float(lat),
+                            "lon": float(lon),
+                        })
+                if results:
+                    return JsonResponse({"results": results})
+        except Exception:
+            pass
+
+    # Fallback: Nominatim (bounded to Bengaluru)
+    try:
+        viewbox = (
+            f"{bounds.get('lon_min', 77.3)},{bounds.get('lat_max', 13.2)},"
+            f"{bounds.get('lon_max', 77.9)},{bounds.get('lat_min', 12.7)}"
+        )
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": f"{q}, Bengaluru, India",
+                "format": "json",
+                "limit": 5,
+                "viewbox": viewbox,
+                "bounded": 1,
+            },
+            headers={"User-Agent": "PaveWatch/1.0 (civic-footpath-app)"},
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        results = [
+            {
+                "address": item.get("display_name", q),
+                "lat": float(item["lat"]),
+                "lon": float(item["lon"]),
+            }
+            for item in (resp.json() or [])[:5]
+            if "lat" in item and "lon" in item
+        ]
+        return JsonResponse({"results": results})
+    except Exception:
+        return JsonResponse({"results": []})
+
+
+@login_required
+def api_suggest(request):
+    """POST image, return optional AI category/severity suggestion JSON."""
+    if request.method != "POST":
+        return JsonResponse({"suggestion": None}, status=405)
+
+    import os
+    if os.getenv("AI_ENABLED", "False") != "True":
+        return JsonResponse({"suggestion": None})
+
+    uploaded = request.FILES.get("image") or request.FILES.get("photo")
+    if not uploaded:
+        return JsonResponse({"suggestion": None})
+
+    try:
+        from core.models import Category
+        from .ai import suggest_from_image
+
+        cf, _ = process_upload(uploaded)
+        suggestion = suggest_from_image(cf.read())
+        if not suggestion:
+            return JsonResponse({"suggestion": None})
+
+        cat_id = Category.objects.filter(name=suggestion.get("category")).values_list("id", flat=True).first()
+        if cat_id is not None:
+            suggestion["category_id"] = cat_id
+        return JsonResponse({"suggestion": suggestion})
+    except Exception:
+        return JsonResponse({"suggestion": None})
+
+
 @login_required
 def check_duplicates(request):
     """JSON endpoint returning nearby open reports with same category within DUPLICATE_RADIUS_M."""
@@ -318,6 +428,8 @@ def report_create(request):
                         processed_photos=processed_photos,
                         exif_results=exif_results,
                         force_duplicate_of=force_duplicate_of,
+                        ai_label=form.cleaned_data.get("ai_label", ""),
+                        ai_confidence=form.cleaned_data.get("ai_confidence"),
                     )
                     messages.success(request, f"Report submitted! Tracking ID: {report.tracking_id}")
                     return redirect("report_detail", pk=report.pk)
@@ -360,6 +472,55 @@ def track_reports(request):
     })
 
 
+def route_check(request):
+    """Accessible walking route check page (GET) and JSON route+blockage API (POST)."""
+    if request.method == "POST":
+        import json
+        from django.conf import settings
+        from .routing import fetch_walking_route, reports_near_polyline
+
+        try:
+            if request.content_type and "application/json" in request.content_type:
+                payload = json.loads(request.body.decode("utf-8") or "{}")
+            else:
+                payload = request.POST
+            start_lat = float(payload["start_lat"])
+            start_lon = float(payload["start_lon"])
+            end_lat = float(payload["end_lat"])
+            end_lon = float(payload["end_lon"])
+        except (KeyError, TypeError, ValueError):
+            return JsonResponse(
+                {"ok": False, "error": "Please pick both start and end points on the map."},
+                status=400,
+            )
+
+        bounds = getattr(settings, "BLR_BOUNDS", {})
+        for lat_val, lon_val in ((start_lat, start_lon), (end_lat, end_lon)):
+            if not (bounds.get("lat_min", -90) <= lat_val <= bounds.get("lat_max", 90)) or not (
+                bounds.get("lon_min", -180) <= lon_val <= bounds.get("lon_max", 180)
+            ):
+                return JsonResponse(
+                    {"ok": False, "error": "Both points must be within Bengaluru city limits."},
+                    status=400,
+                )
+
+        route = fetch_walking_route(start_lat, start_lon, end_lat, end_lon)
+        if not route.get("ok"):
+            return JsonResponse({"ok": False, "error": route.get("error", "Routing failed.")})
+
+        blockages = reports_near_polyline(route["points"], radius_m=15.0, step_m=10.0)
+        return JsonResponse({
+            "ok": True,
+            "points": route["points"],
+            "distance_m": route.get("distance_m"),
+            "duration_s": route.get("duration_s"),
+            "provider": route.get("provider"),
+            "blockages": blockages,
+        })
+
+    return render(request, "reports/route_check.html")
+
+
 def report_detail(request, pk):
     """Public report detail — reporter identity is hidden from the public."""
     report = get_object_or_404(Report, pk=pk)
@@ -371,6 +532,8 @@ def report_detail(request, pk):
         user_confirmed = report.confirmations.filter(
             user=request.user, kind=Confirmation.Kind.STILL_THERE
         ).exists()
+    from .services import nearby_pois
+    pois_near = nearby_pois(report, max_distance_m=300)
     # Only show reporter to staff / the reporter themselves
     show_reporter = (
         request.user.is_authenticated
@@ -385,4 +548,5 @@ def report_detail(request, pk):
         "show_reporter": show_reporter,
         "still_there_count": still_there_count,
         "user_confirmed": user_confirmed,
+        "nearby_pois": pois_near,
     })

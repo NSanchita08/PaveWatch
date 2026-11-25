@@ -81,6 +81,7 @@
           <th>Open</th>
           <th>Resolved</th>
           <th>Reliability</th>
+          <th>Accessibility</th>
         </tr>
       </thead>
       <tbody>
@@ -95,9 +96,14 @@
                 {{ row.reliability }}%
               </span>
             </td>
+            <td>
+              <span class="badge {% if row.accessibility >= 80 %}bg-success{% elif row.accessibility >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                {{ row.accessibility }}%
+              </span>
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="text-muted text-center">No data yet.</td></tr>
+          <tr><td colspan="6" class="text-muted text-center">No data yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -115,9 +121,9 @@
 // Map
 (function () {
   const map = L.map("dash-map").setView([12.9716, 77.5946], 12);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap contributors © CARTO",
-    subdomains: "abcd",
+  L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+    attribution: "© Google Maps",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
     maxZoom: 20
   }).addTo(map);
 

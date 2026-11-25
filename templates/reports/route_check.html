@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Accessible Route Check | PaveWatch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #route-map { height: 440px; border-radius: 8px; border: 1px solid #dee2e6; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end mb-4 pb-3 border-bottom">
+  <div>
+    <div class="font-mono-label text-pw-blue mb-1">Accessibility Navigation</div>
+    <h2 class="font-serif-display mb-0" style="font-size: 2.4rem;">Accessible <em>Route Check</em></h2>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" id="reset-route-btn" class="btn-pw-outline btn-pw-sm">Reset Pins</button>
+    <button type="button" id="check-route-btn" class="btn-pw-primary btn-pw-sm" disabled>Check Route ↗</button>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-2">
+        <div class="px-2 py-1 small text-muted mb-1" id="route-instruction">
+          Click on the map to place the <strong>Start</strong> pin, then click again to place the <strong>Destination</strong> pin.
+        </div>
+        <div class="row g-2 px-2 pb-2">
+          <div class="col-md-6">
+            <div class="input-group input-group-sm">
+              <input type="text" id="start-search-input" class="form-control" placeholder="Search Start (A) in Bengaluru…">
+              <button type="button" id="start-search-btn" class="btn btn-outline-success">Set A</button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="input-group input-group-sm">
+              <input type="text" id="end-search-input" class="form-control" placeholder="Search Destination (B) in Bengaluru…">
+              <button type="button" id="end-search-btn" class="btn btn-outline-danger">Set B</button>
+            </div>
+          </div>
+        </div>
+        <div id="route-map"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div id="route-error" class="alert alert-danger" style="display: none;"></div>
+
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold">Route Summary</div>
+      <div class="card-body">
+        <div id="route-summary-empty" class="text-muted small">
+          Select a start and end point to check for footpath obstructions within 15 m of your walking route.
+        </div>
+        <div id="route-summary-data" style="display: none;">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Distance</span>
+            <strong id="summary-distance">—</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Walking Time</span>
+            <strong id="summary-duration">—</strong>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Open Blockages (≤15 m)</span>
+            <span id="summary-blockage-badge" class="badge bg-secondary">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-header fw-semibold">Blockages Along Route</div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush" id="blockage-list">
+          <li class="list-group-item text-muted small">No route checked yet.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form id="route-csrf-form" style="display:none;">{% csrf_token %}</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+
+  const BLR = [12.9716, 77.5946];
+  const map = L.map("route-map").setView(BLR, 13);
+  L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+    attribution: "© Google Maps",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
+    maxZoom: 20
+  }).addTo(map);
+  setTimeout(() => map.invalidateSize(), 200);
+
+  let startMarker = null;
+  let endMarker = null;
+  let routeLayer = null;
+  const blockageLayer = L.layerGroup().addTo(map);
+
+  const checkBtn = document.getElementById("check-route-btn");
+  const resetBtn = document.getElementById("reset-route-btn");
+  const instruction = document.getElementById("route-instruction");
+  const errorBox = document.getElementById("route-error");
+  const summaryEmpty = document.getElementById("route-summary-empty");
+  const summaryData = document.getElementById("route-summary-data");
+  const summaryDist = document.getElementById("summary-distance");
+  const summaryDur = document.getElementById("summary-duration");
+  const summaryBadge = document.getElementById("summary-blockage-badge");
+  const blockageList = document.getElementById("blockage-list");
+
+  function makePinIcon(color, label) {
+    return L.divIcon({
+      html: `<div style="background:${color};color:#fff;width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">${label}</div>`,
+      className: "pw-route-pin",
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+  }
+
+  function updateControls() {
+    if (!startMarker) {
+      instruction.innerHTML = 'Click on the map to place the <strong>Start</strong> pin (A).';
+      checkBtn.disabled = true;
+    } else if (!endMarker) {
+      instruction.innerHTML = 'Now click on the map to place the <strong>Destination</strong> pin (B).';
+      checkBtn.disabled = true;
+    } else {
+      instruction.innerHTML = 'Both pins placed. Click <strong>Check Route</strong> (or drag pins to adjust).';
+      checkBtn.disabled = false;
+    }
+  }
+
+  map.on("click", function (e) {
+    if (!startMarker) {
+      startMarker = L.marker(e.latlng, { draggable: true, icon: makePinIcon("#198754", "A") }).addTo(map);
+    } else if (!endMarker) {
+      endMarker = L.marker(e.latlng, { draggable: true, icon: makePinIcon("#dc3545", "B") }).addTo(map);
+    }
+    updateControls();
+  });
+
+  async function geocodeAndSet(query, isStart) {
+    if (!query) return;
+    errorBox.style.display = "none";
+    try {
+      const resp = await fetch(`/api/geocode/?q=${encodeURIComponent(query)}`);
+      const data = await resp.json();
+      if (data.results && data.results.length > 0) {
+        const hit = data.results[0];
+        const latlng = L.latLng(hit.lat, hit.lon);
+        if (isStart) {
+          if (startMarker) startMarker.setLatLng(latlng);
+          else startMarker = L.marker(latlng, { draggable: true, icon: makePinIcon("#198754", "A") }).addTo(map);
+        } else {
+          if (endMarker) endMarker.setLatLng(latlng);
+          else endMarker = L.marker(latlng, { draggable: true, icon: makePinIcon("#dc3545", "B") }).addTo(map);
+        }
+        map.setView(latlng, 15);
+        updateControls();
+      } else {
+        errorBox.textContent = `Could not find "${query}" in Bengaluru.`;
+        errorBox.style.display = "block";
+      }
+    } catch (_) {
+      errorBox.textContent = "Location search unavailable right now.";
+      errorBox.style.display = "block";
+    }
+  }
+
+  document.getElementById("start-search-btn").addEventListener("click", () => {
+    geocodeAndSet(document.getElementById("start-search-input").value.trim(), true);
+  });
+  document.getElementById("end-search-btn").addEventListener("click", () => {
+    geocodeAndSet(document.getElementById("end-search-input").value.trim(), false);
+  });
+
+  resetBtn.addEventListener("click", function () {
+    if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+    if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    blockageLayer.clearLayers();
+    errorBox.style.display = "none";
+    summaryEmpty.style.display = "block";
+    summaryData.style.display = "none";
+    blockageList.innerHTML = '<li class="list-group-item text-muted small">No route checked yet.</li>';
+    updateControls();
+  });
+
+  checkBtn.addEventListener("click", async function () {
+    if (!startMarker || !endMarker) return;
+    errorBox.style.display = "none";
+    checkBtn.disabled = true;
+    checkBtn.textContent = "Checking…";
+
+    const s = startMarker.getLatLng();
+    const d = endMarker.getLatLng();
+    const csrf = document.querySelector("#route-csrf-form input[name='csrfmiddlewaretoken']").value;
+
+    try {
+      const resp = await fetch("{% url 'route_check' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrf,
+        },
+        body: JSON.stringify({
+          start_lat: s.lat,
+          start_lon: s.lng,
+          end_lat: d.lat,
+          end_lon: d.lng,
+        }),
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        errorBox.textContent = data.error || "Could not check route.";
+        errorBox.style.display = "block";
+        return;
+      }
+
+      if (routeLayer) map.removeLayer(routeLayer);
+      blockageLayer.clearLayers();
+
+      const hasBlockages = data.blockages && data.blockages.length > 0;
+      routeLayer = L.polyline(data.points, {
+        color: hasBlockages ? "#dc3545" : "#198754",
+        weight: 5,
+        opacity: 0.85,
+      }).addTo(map);
+      map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+
+      summaryEmpty.style.display = "none";
+      summaryData.style.display = "block";
+      summaryDist.textContent = data.distance_m != null ? `${(data.distance_m / 1000).toFixed(2)} km` : "—";
+      summaryDur.textContent = data.duration_s != null ? `${Math.max(1, Math.round(data.duration_s / 60))} min` : "—";
+
+      const count = data.blockages ? data.blockages.length : 0;
+      summaryBadge.textContent = String(count);
+      summaryBadge.className = `badge ${count > 0 ? "bg-danger" : "bg-success"}`;
+
+      if (count === 0) {
+        blockageList.innerHTML = '<li class="list-group-item text-success small">✓ No open obstructions found within 15 m of this route.</li>';
+      } else {
+        blockageList.innerHTML = "";
+        data.blockages.forEach(b => {
+          const marker = L.circleMarker([b.lat, b.lon], {
+            radius: 8,
+            color: "#fff",
+            weight: 2,
+            fillColor: "#dc3545",
+            fillOpacity: 0.95,
+          }).bindPopup(
+            `<strong>${b.tracking_id}</strong><br>${b.category} (${b.distance_m} m from route)<br><a href="${b.detail_url}">View Report →</a>`
+          );
+          blockageLayer.addLayer(marker);
+
+          const li = document.createElement("li");
+          li.className = "list-group-item small";
+          li.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <a href="${b.detail_url}" class="fw-semibold text-decoration-none">${b.tracking_id}</a>
+                <div class="text-muted">${b.category} · ${b.distance_m} m away</div>
+              </div>
+              <span class="badge bg-danger">Sev ${b.severity}</span>
+            </div>
+          `;
+          blockageList.appendChild(li);
+        });
+      }
+    } catch (_) {
+      errorBox.textContent = "Network error while checking route. Please try again.";
+      errorBox.style.display = "block";
+    } finally {
+      checkBtn.disabled = false;
+      checkBtn.textContent = "Check Route ↗";
+    }
+  });
+})();
+</script>
+{% endblock %}

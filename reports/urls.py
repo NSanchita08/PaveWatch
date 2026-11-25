@@ -5,8 +5,11 @@ urlpatterns = [
     # Citizen
     path("report/new/", views.report_create, name="report_create"),
     path("report/check-duplicates/", views.check_duplicates, name="check_duplicates"),
+    path("api/suggest/", views.api_suggest, name="api_suggest"),
+    path("api/geocode/", views.api_geocode, name="api_geocode"),
     path("my/", views.my_reports, name="my_reports"),
     path("track/", views.track_reports, name="track_reports"),
+    path("route-check/", views.route_check, name="route_check"),
     path("r/<int:pk>/", views.report_detail, name="report_detail"),
     path("r/<int:pk>/confirm/", views.report_confirm, name="report_confirm"),
     path("r/<int:pk>/feedback/", views.report_feedback, name="report_feedback"),

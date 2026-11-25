@@ -58,6 +58,11 @@
             {% endif %}
           </dd>
 
+          <dt class="col-sm-4">Priority Score</dt>
+          <dd class="col-sm-8">
+            <span class="badge bg-primary">{{ report.priority_score|floatformat:0 }}</span>
+          </dd>
+
           <dt class="col-sm-4">Trust Score</dt>
           <dd class="col-sm-8">
             <div class="d-flex align-items-center gap-2">
@@ -123,6 +128,18 @@
           {% if report.affects_visually_impaired %}<span class="badge bg-info text-dark me-1">👁 Visually Impaired</span>{% endif %}
           {% if report.affects_elderly %}<span class="badge bg-secondary me-1">🧓 Elderly</span>{% endif %}
           {% if report.affects_children %}<span class="badge bg-warning text-dark me-1">👶 Children</span>{% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Nearby POIs -->
+        {% if nearby_pois %}
+        <div class="mt-3">
+          <strong>Accessibility Context:</strong>
+          {% for item in nearby_pois %}
+            <span class="badge bg-light text-dark border me-1 mb-1" title="{{ item.name }}">
+              Near: {{ item.poi_type_label|lower }} ({{ item.distance_m }} m){% if item.name %} · {{ item.name }}{% endif %}
+            </span>
+          {% endfor %}
         </div>
         {% endif %}
       </div>
@@ -255,9 +272,9 @@
   const lat = {{ report.lat }};
   const lon = {{ report.lon }};
   const map = L.map("detail-map").setView([lat, lon], 16);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap contributors © CARTO",
-    subdomains: "abcd",
+  L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+    attribution: "© Google Maps",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
     maxZoom: 20
   }).addTo(map);
   setTimeout(function() { map.invalidateSize(); }, 200);

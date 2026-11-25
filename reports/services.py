@@ -142,12 +142,15 @@ def compute_priority(report) -> float:
           + min(2 * STILL_THERE confirmations, 10)
           + min(days_open, 15)
     """
-    from .geo import haversine_m
+    from .geo import haversine_m, bbox
     from core.models import POI
 
     score = float(report.severity * 10)
 
-    pois = list(POI.objects.all())
+    lat_min, lat_max, lon_min, lon_max = bbox(report.lat, report.lon, 300)
+    pois = list(
+        POI.objects.filter(lat__range=(lat_min, lat_max), lon__range=(lon_min, lon_max))
+    )
     near_school = any(
         haversine_m(report.lat, report.lon, p.lat, p.lon) <= 300
         for p in pois if p.poi_type == POI.Type.SCHOOL
@@ -176,10 +179,48 @@ def compute_priority(report) -> float:
     score += min(2 * confirmations, 10)
 
     if report.created_at:
-        days_open = (timezone.now() - report.created_at).days
+        days_open = max((timezone.now() - report.created_at).days, 0)
         score += min(days_open, 15)
 
     return score
+
+
+def nearby_pois(report, max_distance_m: int = 300) -> list[dict]:
+    """Return POIs within max_distance_m of report, sorted by distance ascending."""
+    from .geo import haversine_m, bbox
+    from core.models import POI
+
+    lat_min, lat_max, lon_min, lon_max = bbox(report.lat, report.lon, max_distance_m)
+    candidates = POI.objects.filter(
+        lat__range=(lat_min, lat_max),
+        lon__range=(lon_min, lon_max),
+    )
+    results = []
+    for p in candidates:
+        dist = haversine_m(report.lat, report.lon, p.lat, p.lon)
+        if dist <= max_distance_m:
+            results.append({
+                "poi": p,
+                "name": p.name,
+                "poi_type": p.poi_type,
+                "poi_type_label": p.get_poi_type_display(),
+                "distance_m": round(dist),
+            })
+    results.sort(key=lambda item: item["distance_m"])
+    return results
+
+
+def recalc_all_priorities(include_closed: bool = False) -> int:
+    """Recalculate priority_score for open reports (or all reports if include_closed=True)."""
+    qs = Report.objects.all() if include_closed else Report.objects.filter(status__in=Report.OPEN_STATUSES)
+    updated = 0
+    for report in qs:
+        new_score = compute_priority(report)
+        if report.priority_score != new_score:
+            report.priority_score = new_score
+            report.save(update_fields=["priority_score"])
+            updated += 1
+    return updated
 
 
 def compute_trust(report) -> int:
@@ -222,16 +263,50 @@ def add_confirmation(report: Report, user, kind: str = "STILL_THERE") -> tuple[C
     return conf, created
 
 
+def _ward_open_priority_sums() -> dict[int, float]:
+    """Return mapping of ward_id -> sum of priority_score for open reports."""
+    from core.models import Ward
+    from django.db.models import Sum
+
+    sums = dict(
+        Report.objects.filter(status__in=Report.OPEN_STATUSES, ward__isnull=False)
+        .values("ward_id")
+        .annotate(total_priority=Sum("priority_score"))
+        .values_list("ward_id", "total_priority")
+    )
+    return {w.id: float(sums.get(w.id) or 0.0) for w in Ward.objects.all()}
+
+
+def accessibility_score(ward) -> float:
+    """
+    Compute accessibility score for a ward:
+    100 * (1 - ward_open_priority_sum / max_ward_open_priority_sum),
+    or 100.0 if max_ward_open_priority_sum is 0.
+    """
+    sums = _ward_open_priority_sums()
+    if not sums:
+        return 100.0
+    max_sum = max(sums.values())
+    if max_sum <= 0:
+        return 100.0
+    ward_sum = sums.get(ward.id, 0.0)
+    return round(100.0 * (1.0 - ward_sum / max_sum), 1)
+
+
 def ward_scores() -> list[dict]:
     """
-    Compute reliability scores per ward:
+    Compute reliability and accessibility scores per ward:
     reliability = 70 * on_time_resolved_share + 30 * (1 - overdue_open_share)
+    accessibility = 100 * (1 - ward_open_priority_sum / max_ward_open_priority_sum)
     (with divide-by-zero guards).
     """
     from core.models import Ward
     from django.db.models import F
 
     now = timezone.now()
+    priority_sums = _ward_open_priority_sums()
+    max_priority_sum = max(priority_sums.values(), default=0.0)
+
     results = []
     for ward in Ward.objects.all():
         ward_reports = Report.objects.filter(ward=ward)
@@ -260,6 +335,12 @@ def ward_scores() -> list[dict]:
         reliability = round(
             70.0 * on_time_resolved_share + 30.0 * (1.0 - overdue_open_share), 1
         )
+        ward_sum = priority_sums.get(ward.id, 0.0)
+        accessibility = (
+            round(100.0 * (1.0 - ward_sum / max_priority_sum), 1)
+            if max_priority_sum > 0
+            else 100.0
+        )
         results.append({
             "ward": ward,
             "ward_name": ward.name,
@@ -268,6 +349,7 @@ def ward_scores() -> list[dict]:
             "resolved_count": resolved_count,
             "overdue_open": overdue_open,
             "reliability": reliability,
+            "accessibility": accessibility,
         })
     results.sort(key=lambda x: (-x["reliability"], -x["total"], x["ward_name"]))
     return results
@@ -355,7 +437,8 @@ def auto_close_resolved_reports() -> int:
 @transaction.atomic
 def create_report(*, reporter, category, lat, lon, description, landmark,
                   severity, affects, processed_photos, exif_results,
-                  force_duplicate_of=None) -> Report:
+                  force_duplicate_of=None, ai_label: str = "",
+                  ai_confidence: float | None = None) -> Report:
     """
     1. Create Report (ward = nearest_ward, sla_due_at = now + category.sla_days).
     2. Set tracking_id = f"PW-{year}-{pk:06d}" and save again.
@@ -368,6 +451,13 @@ def create_report(*, reporter, category, lat, lon, description, landmark,
     """
     from .geo import nearest_ward
     from django.conf import settings
+
+    if reporter is not None:
+        max_per_day = getattr(settings, "MAX_REPORTS_PER_DAY", 20)
+        since = timezone.now() - __import__("datetime").timedelta(days=1)
+        recent_count = Report.objects.filter(reporter=reporter, created_at__gte=since).count()
+        if recent_count >= max_per_day:
+            raise ValueError(f"Daily report limit reached ({max_per_day} reports per day). Please try again tomorrow.")
 
     ward = nearest_ward(lat, lon)
     sla_due_at = timezone.now() + __import__('datetime').timedelta(days=category.sla_days)
@@ -387,6 +477,8 @@ def create_report(*, reporter, category, lat, lon, description, landmark,
         affects_visually_impaired=affects.get("visually_impaired", False),
         affects_elderly=affects.get("elderly", False),
         affects_children=affects.get("children", False),
+        ai_label=(ai_label or "").strip()[:80],
+        ai_confidence=ai_confidence,
     )
 
     year = report.created_at.year

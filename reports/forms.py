@@ -6,6 +6,16 @@ class MultiFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
 
+class MultiFileField(forms.FileField):
+    """FileField that accepts multiple uploaded files from MultiFileInput."""
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file_clean(d, initial) for d in data if d]
+        return [single_file_clean(data, initial)] if data else []
+
+
 class ReportForm(forms.Form):
     """Form for submitting a new obstruction report."""
 
@@ -54,8 +64,10 @@ class ReportForm(forms.Form):
         widget=forms.HiddenInput(),
         error_messages={"required": "Please drop a pin on the map to select a location."},
     )
+    ai_label = forms.CharField(required=False, max_length=80, widget=forms.HiddenInput())
+    ai_confidence = forms.FloatField(required=False, widget=forms.HiddenInput())
 
-    photos = forms.FileField(
+    photos = MultiFileField(
         widget=MultiFileInput(attrs={
             "multiple": True,
             "accept": "image/jpeg,image/png,image/webp",
