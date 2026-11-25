@@ -31,7 +31,7 @@
 | STEP 9 | Notifications | DONE | 2026-11-22 | <commit_hash> | system check passed, pytest passed, notifications UI added
 | STEP 10 | Seed data and tests | DONE | 2026-11-23 | - | seed_demo populated 6 wards, categories, POIs, demo users and 60 reports; 13/13 pytests passing |
 | STEP 11 | Deploy MVP | DONE | 2026-11-23 | - | Local server active and serving HTTP 200 on http://127.0.0.1:8000/ |
-| STEP 12 | Verified reports | PENDING | - | - | - |
+| STEP 12 | Verified reports | DONE | 2026-11-25 | f2f1332 | check (0 issues), makemigrations --check (0 changes), pytest (22 passed in 62.74s), EXIF GPS & timestamp validation, duplicate check API, Still There confirmation & recalculation, Verified badge (trust_score >= 50) |
 | STEP 13 | SLA, escalation and closure | PENDING | - | - | - |
 | STEP 14 | Accessibility-aware priority (headline feature) | PENDING | - | - | - |
 | STEP 15 | AI photo assistant (optional) | PENDING | - | - | - |
@@ -52,6 +52,7 @@
 | 2026-11-23 | STEP 7 | Senior Fullstack | `core/admin.py`, `accounts/admin.py`, `reports/admin.py`, `tests/test_admin_polish.py` | Polished Django Admin: made `sla_days` and `base_severity` editable in Category list view; configured User admin with `add_fieldsets` and profile fields (role, ward, zone, points); added `export_reports_to_csv` admin action respecting privacy constraints; made `StatusHistory` inline read-only. Added unit tests with 16/16 pytests passing. |
 | 2026-11-24 | Map & Demo Images Fix | Senior Fullstack | `reports/demo_images.py`, `core/management/commands/seed_demo.py`, `templates/reports/{create,detail,track}.html`, `templates/officer/manage.html`, `templates/dashboard/home.html` | Created `reports/demo_images.py` generating realistic sidewalk pavement images with category badges, curb hazard stripes, GPS stamps, and before/after tags. Refreshed all 72 demo report photos via `seed_demo --refresh-images`. Fixed Leaflet CDN default marker icon asset paths, added `map.invalidateSize()` on all maps, added interactive clustered markers with report links to the Track Reports page, and verified HTTP 200 on all map & media endpoints. All 16 pytests passing. |
 | 2026-11-24 | Map Tile API Switch | Senior Fullstack | `templates/reports/{create,detail,track}.html`, `templates/officer/manage.html`, `templates/dashboard/home.html` | Replaced blocked OpenStreetMap volunteer tile server (`tile.openstreetmap.org`, which triggers HTTP 403 policy block on localhost/app referrers) with high-availability CARTO Voyager tiles (`basemaps.cartocdn.com/rastertiles/voyager/`). Tested and verified map rendering across all 5 map templates. |
+| 2026-11-25 | STEP 12 | Senior Fullstack | `reports/{models,services,views,urls}.py`, `templates/{reports/{create,detail}.html,officer/{queue,manage}.html}`, `tests/test_verified_reports.py` | Implemented verified reports feature: EXIF GPS & timestamp validation wired to exif_ok and trust_score (compute_trust); find_duplicates and check_duplicates API with client warning and 'Submit anyway' linking duplicate_of; 'Still there' confirmation button (add_confirmation) recalculating priority and trust; verified badge on trust_score >= 50 across officer queue, manage, and report detail views. All 22 tests passing. |
 
 ---
 
@@ -66,6 +67,7 @@
 - Citizen registration always sets `role = Role.CITIZEN`.
 - Implemented `@role_required` decorator supporting multiple roles and redirecting unauthenticated users to login while raising `PermissionDenied` (403) for unauthorized authenticated roles.
 - Initialized `reports.services.can_change_status(user, report)` implementing object-level access controls for officers (same ward), supervisors (same zone), and admins (global).
+- Step 12: Reports calculate exif_ok=True if photo has GPS within EXIF_MAX_DISTANCE_M (100m) and timestamp within EXIF_MAX_AGE_HOURS (48h). compute_trust awards +50 for valid EXIF (+30 GPS, +20 timestamp), +20 for AI label category match, up to +20 for STILL_THERE confirmations (5 each), and +10 for prior closed reports (capped at 100). Reports with trust_score >= 50 earn the Verified badge. Confirmation model enforces uniqueness per user/report/kind.
 
 ---
 
@@ -86,4 +88,4 @@
 ---
 
 ## 7. NEXT ACTION
-STEP 7 completed. Awaiting user command to proceed to STEP 12 (Verified reports: EXIF check, duplicate detection API & warnings, "Still there" confirmation, Verified badge).
+STEP 12 completed. Awaiting user command to proceed to STEP 13 (SLA, escalation and closure: escalate_overdue and auto_close commands, countdown/overdue displays, citizen feedback on RESOLVED reports, ward reliability scores).
