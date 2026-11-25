@@ -231,6 +231,40 @@ def report_confirm(request, pk):
 
 
 @login_required
+def report_feedback(request, pk):
+    """Reporter submits FIXED or NOT_FIXED feedback on a RESOLVED report."""
+    report = get_object_or_404(Report, pk=pk)
+    if report.reporter != request.user:
+        raise PermissionDenied("Only the reporter can submit resolution feedback.")
+
+    if request.method == "POST":
+        if report.status != Report.Status.RESOLVED:
+            messages.warning(request, "Feedback can only be submitted on resolved reports.")
+            return redirect("report_detail", pk=report.pk)
+
+        feedback = request.POST.get("feedback", "")
+        if feedback == "FIXED":
+            Confirmation.objects.get_or_create(
+                report=report, user=request.user, kind=Confirmation.Kind.FIXED
+            )
+            change_status(
+                report, Report.Status.CLOSED, request.user, remark="Citizen confirmed fixed"
+            )
+            messages.success(request, "Thank you! The report has been closed.")
+        elif feedback == "NOT_FIXED":
+            Confirmation.objects.get_or_create(
+                report=report, user=request.user, kind=Confirmation.Kind.NOT_FIXED
+            )
+            change_status(
+                report, Report.Status.REOPENED, request.user, remark="Citizen reported not fixed"
+            )
+            messages.warning(request, "Report has been reopened for further action.")
+        else:
+            messages.error(request, "Invalid feedback option.")
+    return redirect("report_detail", pk=report.pk)
+
+
+@login_required
 def report_create(request):
     """Create a new report (any authenticated user, citizen role preferred)."""
     if request.method == "POST":

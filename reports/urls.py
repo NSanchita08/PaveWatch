@@ -9,6 +9,7 @@ urlpatterns = [
     path("track/", views.track_reports, name="track_reports"),
     path("r/<int:pk>/", views.report_detail, name="report_detail"),
     path("r/<int:pk>/confirm/", views.report_confirm, name="report_confirm"),
+    path("r/<int:pk>/feedback/", views.report_feedback, name="report_feedback"),
 
     # Officer
     path("officer/", views.officer_queue, name="officer_queue"),

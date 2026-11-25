@@ -60,6 +60,16 @@
           <dt class="col-sm-4">Description</dt><dd class="col-sm-8">{{ report.description|default:"—" }}</dd>
           <dt class="col-sm-4">Landmark</dt><dd class="col-sm-8">{{ report.landmark|default:"—" }}</dd>
           <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8">{{ report.created_at|date:"d M Y, H:i" }}</dd>
+          {% if report.sla_status_label %}
+          <dt class="col-sm-4">SLA</dt>
+          <dd class="col-sm-8">
+            {% if report.is_overdue %}
+              <span class="badge bg-danger">{{ report.sla_status_label }}</span>
+            {% else %}
+              <span class="badge bg-info text-dark">{{ report.sla_status_label }}</span>
+            {% endif %}
+          </dd>
+          {% endif %}
           <dt class="col-sm-4">Assigned to</dt><dd class="col-sm-8">{{ report.assigned_to.username|default:"Unassigned" }}</dd>
         </dl>
 

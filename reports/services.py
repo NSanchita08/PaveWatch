@@ -222,32 +222,134 @@ def add_confirmation(report: Report, user, kind: str = "STILL_THERE") -> tuple[C
     return conf, created
 
 
-def ward_scores():
-    """Reliability and accessibility scores per ward."""
+def ward_scores() -> list[dict]:
+    """
+    Compute reliability scores per ward:
+    reliability = 70 * on_time_resolved_share + 30 * (1 - overdue_open_share)
+    (with divide-by-zero guards).
+    """
     from core.models import Ward
-    from django.db.models import Count, Q
+    from django.db.models import F
+
+    now = timezone.now()
     results = []
     for ward in Ward.objects.all():
-        total = Report.objects.filter(ward=ward).count()
-        on_time = Report.objects.filter(
-            ward=ward,
-            status=Report.Status.CLOSED,
+        ward_reports = Report.objects.filter(ward=ward)
+        total = ward_reports.count()
+
+        resolved_qs = ward_reports.filter(
+            status__in=[Report.Status.RESOLVED, Report.Status.CLOSED]
+        )
+        resolved_count = resolved_qs.count()
+        on_time_resolved = resolved_qs.filter(
             resolved_at__isnull=False,
             sla_due_at__isnull=False,
-        ).filter(resolved_at__lte=__import__('django.db.models', fromlist=['F']).F('sla_due_at')).count()
-        overdue_open = Report.objects.filter(
-            ward=ward,
-            status__in=Report.OPEN_STATUSES,
-            sla_due_at__lt=timezone.now(),
+            resolved_at__lte=F("sla_due_at"),
         ).count()
-        open_count = Report.objects.filter(ward=ward, status__in=Report.OPEN_STATUSES).count()
-        reliability = (
-            70 * (on_time / total) + 30 * (1 - overdue_open / open_count)
-            if total > 0 and open_count > 0
-            else 100.0
+        on_time_resolved_share = (
+            on_time_resolved / resolved_count if resolved_count > 0 else 1.0
         )
-        results.append({"ward": ward, "reliability": round(reliability, 1)})
+
+        open_qs = ward_reports.filter(status__in=Report.OPEN_STATUSES)
+        open_count = open_qs.count()
+        overdue_open = open_qs.filter(sla_due_at__lt=now).count()
+        overdue_open_share = (
+            overdue_open / open_count if open_count > 0 else 0.0
+        )
+
+        reliability = round(
+            70.0 * on_time_resolved_share + 30.0 * (1.0 - overdue_open_share), 1
+        )
+        results.append({
+            "ward": ward,
+            "ward_name": ward.name,
+            "total": total,
+            "open_count": open_count,
+            "resolved_count": resolved_count,
+            "overdue_open": overdue_open,
+            "reliability": reliability,
+        })
+    results.sort(key=lambda x: (-x["reliability"], -x["total"], x["ward_name"]))
     return results
+
+
+def escalate_overdue_reports() -> int:
+    """
+    For open reports with sla_due_at < now and escalated=False:
+    - Set escalated=True
+    - Notify ward officer(s) (plus assigned_to) and zone supervisor(s)
+    - Insert direct StatusHistory row with remark 'Auto-escalated' (same status -> same status)
+    Returns count of escalated reports.
+    """
+    now = timezone.now()
+    overdue_qs = Report.objects.filter(
+        status__in=Report.OPEN_STATUSES,
+        sla_due_at__lt=now,
+        escalated=False,
+    ).select_related("ward", "assigned_to")
+
+    count = 0
+    for report in overdue_qs:
+        with transaction.atomic():
+            report.escalated = True
+            report.save(update_fields=["escalated"])
+
+            StatusHistory.objects.create(
+                report=report,
+                from_status=report.status,
+                to_status=report.status,
+                changed_by=None,
+                remark="Auto-escalated",
+            )
+
+            recipients = set()
+            if report.assigned_to:
+                recipients.add(report.assigned_to)
+            if report.ward:
+                for officer in User.objects.filter(role=User.Role.OFFICER, ward=report.ward):
+                    recipients.add(officer)
+                if report.ward.zone:
+                    for supervisor in User.objects.filter(role=User.Role.SUPERVISOR, zone=report.ward.zone):
+                        recipients.add(supervisor)
+
+            msg = f"SLA overdue: Report {report.tracking_id or report.pk} has been auto-escalated."
+            for user in recipients:
+                notify(user, report, msg)
+
+            count += 1
+    return count
+
+
+def auto_close_resolved_reports() -> int:
+    """
+    Close RESOLVED reports older than AUTO_CLOSE_DAYS with no citizen feedback.
+    Returns count of auto-closed reports.
+    """
+    from datetime import timedelta
+    from django.conf import settings
+
+    auto_close_days = getattr(settings, "AUTO_CLOSE_DAYS", 7)
+    cutoff = timezone.now() - timedelta(days=auto_close_days)
+
+    stale_qs = (
+        Report.objects.filter(
+            status=Report.Status.RESOLVED,
+            resolved_at__lt=cutoff,
+        )
+        .exclude(confirmations__kind__in=[Confirmation.Kind.FIXED, Confirmation.Kind.NOT_FIXED])
+        .distinct()
+    )
+
+    count = 0
+    for report in stale_qs:
+        change_status(
+            report,
+            Report.Status.CLOSED,
+            changed_by=None,
+            remark=f"Auto-closed after {auto_close_days} days with no citizen feedback",
+        )
+        count += 1
+    return count
 
 
 @transaction.atomic

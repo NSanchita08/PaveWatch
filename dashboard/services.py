@@ -2,6 +2,7 @@
 import json
 from django.db.models import Count, Avg
 from reports.models import Report
+from reports.services import ward_scores
 
 
 def get_dashboard_data() -> dict:
@@ -40,8 +41,9 @@ def get_dashboard_data() -> dict:
         "status_counts": json.dumps(status_counts_dict),
         "ward_counts_json": json.dumps(ward_counts_dict),
         "reports": json.dumps(reports_list),
-        # Python dicts for template leaderboard
+        # Python dicts/lists for template leaderboard
         "ward_leaderboard": ward_counts_dict,
+        "ward_scores": ward_scores(),
         "avg_priority": avg_vals.get("avg_priority") or 0,
         "avg_trust": avg_vals.get("avg_trust") or 0,
     }

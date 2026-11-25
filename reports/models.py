@@ -49,6 +49,32 @@ class Report(models.Model):
     def is_verified(self) -> bool:
         return self.trust_score >= 50
 
+    @property
+    def is_overdue(self) -> bool:
+        from django.utils import timezone
+        return (
+            self.status in self.OPEN_STATUSES
+            and self.sla_due_at is not None
+            and timezone.now() > self.sla_due_at
+        )
+
+    @property
+    def sla_status_label(self) -> str:
+        from django.utils import timezone
+        if self.status not in self.OPEN_STATUSES or not self.sla_due_at:
+            return ""
+        delta = self.sla_due_at - timezone.now()
+        if delta.total_seconds() < 0:
+            overdue_days = (-delta).days
+            if overdue_days >= 1:
+                return f"Overdue by {overdue_days} day{'s' if overdue_days != 1 else ''}"
+            return "Overdue (< 1 day)"
+        days_left = delta.days
+        if days_left >= 1:
+            return f"{days_left} day{'s' if days_left != 1 else ''} left"
+        hours_left = max(1, int(delta.total_seconds() // 3600))
+        return f"{hours_left} hour{'s' if hours_left != 1 else ''} left"
+
     def __str__(self):
         return self.tracking_id or f"Report #{self.pk}"
 
